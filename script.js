@@ -102,9 +102,12 @@
   };
 
   // =========================================================
-  // BỘ LỌC TÂM LÝ BINANCE
+  // BỘ LỌC TÂM LÝ BINANCE — Gauge Long/Short có animation mượt
   // =========================================================
-  let binanceLSRatio = 1.0; 
+  let binanceLSRatio = 1.0;
+  let lsPrevScore = null;      // điểm % Long của lần cập nhật trước (để tính mũi tên tăng/giảm)
+  let lsAnimScore = 50;        // điểm đang hiển thị tại thời điểm hiện tại của animation (tween)
+  let lsAnimFrameId = null;
   async function fetchBinanceSentiment(symbol = currentSymbol) {
     try {
       const response = await fetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${symbol}&period=5m&limit=1`);
@@ -123,46 +126,123 @@
     return (ratio / (1 + ratio)) * 100; // % Long chính xác theo công thức của Binance
   }
   function scoreToColor(score) {
-    if (score < 20) return '#7a1330'; if (score < 40) return '#d94f6b';
-    if (score < 60) return '#d9a066'; if (score < 80) return '#8bc34a';
-    return '#3f7d20';
+    if (score < 20) return '#e0455c'; if (score < 40) return '#e07a5f';
+    if (score < 60) return '#d9a066'; if (score < 80) return '#7fc95f';
+    return '#2ecc71';
   }
   function scoreToLabel(score) {
     if (score < 20) return 'Short áp đảo'; if (score < 40) return 'Nghiêng Short';
     if (score < 60) return 'Cân bằng'; if (score < 80) return 'Nghiêng Long';
     return 'Long áp đảo';
   }
-  function buildGaugeSVG(score) {
-    const cx = 150, cy = 158, r = 112, sw = 22;
-    function pt(s, radius) {
-      const deg = 180 - (s / 100) * 180; const rad = deg * Math.PI / 180;
-      return { x: cx + radius * Math.cos(rad), y: cy - radius * Math.sin(rad) };
-    }
-    const segments = [[0, 20, '#7a1330'], [20, 40, '#d94f6b'], [40, 60, '#d9a066'], [60, 80, '#8bc34a'], [80, 100, '#3f7d20']];
+  function lsHexToRgb(hex) { const h = hex.replace('#', ''); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+  function lsLerpColor(hexA, hexB, t) {
+    const a = lsHexToRgb(hexA), b = lsHexToRgb(hexB);
+    const r = Math.round(a[0] + (b[0]-a[0])*t), g = Math.round(a[1] + (b[1]-a[1])*t), bl = Math.round(a[2] + (b[2]-a[2])*t);
+    return `rgb(${r},${g},${bl})`;
+  }
+  function lsEaseOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+  function lsPt(cx, cy, r, s) { const deg = 180 - (s / 100) * 180; const rad = deg * Math.PI / 180; return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) }; }
+  function lsArcPath(cx, cy, r, s1, s2) { const a = lsPt(cx, cy, r, s1), b = lsPt(cx, cy, r, s2); return `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} A ${r} ${r} 0 0 1 ${b.x.toFixed(2)} ${b.y.toFixed(2)}`; }
+
+  const LS_CX = 150, LS_CY = 158, LS_R = 112, LS_SW = 22;
+
+  // Dựng khung SVG tĩnh (nền cung màu, mốc 0/50/100) — chỉ chạy MỘT LẦN, không re-render mỗi lần có dữ liệu mới
+  function buildGaugeShell() {
+    const segments = [[0, 20, '#c23a4f'], [20, 40, '#d9765a'], [40, 60, '#c99257'], [60, 80, '#5fae52'], [80, 100, '#219150']];
     const gap = 1.6;
     let arcs = '';
     segments.forEach(([s1, s2, color]) => {
-      const a = pt(s1 + gap / 2, r), b = pt(s2 - gap / 2, r);
-      arcs += `<path d="M ${a.x.toFixed(2)} ${a.y.toFixed(2)} A ${r} ${r} 0 0 1 ${b.x.toFixed(2)} ${b.y.toFixed(2)}" stroke="${color}" stroke-width="${sw}" fill="none" stroke-linecap="round"/>`;
+      const a = lsPt(LS_CX, LS_CY, LS_R, s1 + gap / 2), b = lsPt(LS_CX, LS_CY, LS_R, s2 - gap / 2);
+      arcs += `<path d="M ${a.x.toFixed(2)} ${a.y.toFixed(2)} A ${LS_R} ${LS_R} 0 0 1 ${b.x.toFixed(2)} ${b.y.toFixed(2)}" stroke="${color}" stroke-width="${LS_SW}" fill="none" stroke-linecap="round" opacity="0.32"/>`;
     });
-    const needleColor = scoreToColor(score);
-    const hs1 = Math.max(0, score - 6), hs2 = Math.min(100, score + 6);
-    const ha = pt(hs1, r), hb = pt(hs2, r);
-    const highlight = `<path d="M ${ha.x.toFixed(2)} ${ha.y.toFixed(2)} A ${r} ${r} 0 0 1 ${hb.x.toFixed(2)} ${hb.y.toFixed(2)}" stroke="${needleColor}" stroke-width="${sw + 4}" fill="none" stroke-linecap="round" opacity="0.95"/>`;
-    const p = pt(score, r);
-    return `<svg viewBox="0 0 300 190">
-      ${arcs}
-      ${highlight}
-      <circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="12" fill="#ffffff" stroke="#0a0d13" stroke-width="3"/>
-      <text x="150" y="148" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-weight="700" font-size="42" fill="${needleColor}">${Math.round(score)}%</text>
-      <text x="150" y="176" text-anchor="middle" font-family="'Inter', sans-serif" font-weight="600" font-size="15" fill="#e7eaf0">${scoreToLabel(score)}</text>
-    </svg>`;
+    const svg = `
+      <svg viewBox="0 0 300 192" class="ls-svg">
+        <defs>
+          <filter id="ls-glow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="5" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g class="ls-track">${arcs}</g>
+        <path id="ls-highlight" d="" stroke="#7fc95f" stroke-width="${LS_SW}" fill="none" stroke-linecap="round"/>
+        <circle id="ls-dot-glow" cx="150" cy="46" r="15" fill="#7fc95f" opacity="0.35" filter="url(#ls-glow)"/>
+        <circle id="ls-dot" cx="150" cy="46" r="9" fill="#ffffff" stroke="#0a0d13" stroke-width="3"/>
+        <text x="30" y="184" font-family="'JetBrains Mono', monospace" font-weight="700" font-size="11" fill="#7c8598" letter-spacing="1">SHORT</text>
+        <text x="270" y="184" text-anchor="end" font-family="'JetBrains Mono', monospace" font-weight="700" font-size="11" fill="#7c8598" letter-spacing="1">LONG</text>
+        <text id="ls-percent" x="150" y="148" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-weight="800" font-size="42" fill="#7fc95f">50%</text>
+        <text id="ls-label" x="150" y="174" text-anchor="middle" font-family="'Inter', sans-serif" font-weight="600" font-size="15" fill="#e7eaf0">Cân bằng</text>
+      </svg>
+      <div class="ls-footer">
+        <span>Tỷ lệ L/S thực tế: <b id="ls-ratio">1.00</b> (Long:Short)</span>
+        <span id="ls-delta" class="ls-delta"></span>
+      </div>`;
+    const gaugeEl = document.getElementById('sentiment-gauge');
+    gaugeEl.innerHTML = svg;
+    gaugeEl.classList.add('ls-ready');
   }
+
+  // Animate mượt từ điểm hiện tại -> điểm mới trong ~900ms (ease-out), không đập lại toàn bộ DOM
+  function animateGaugeTo(targetScore) {
+    if (lsAnimFrameId) cancelAnimationFrame(lsAnimFrameId);
+    const startScore = lsAnimScore;
+    const startColor = scoreToColor(startScore);
+    const endColor = scoreToColor(targetScore);
+    const duration = 900;
+    const t0 = performance.now();
+    const highlightEl = document.getElementById('ls-highlight');
+    const dotEl = document.getElementById('ls-dot');
+    const glowEl = document.getElementById('ls-dot-glow');
+    const percentEl = document.getElementById('ls-percent');
+    const labelEl = document.getElementById('ls-label');
+    if (!highlightEl || !dotEl || !percentEl || !labelEl) return;
+
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / duration);
+      const eased = lsEaseOutCubic(t);
+      const score = startScore + (targetScore - startScore) * eased;
+      lsAnimScore = score;
+      const color = lsLerpColor(startColor, endColor, eased);
+
+      const hs1 = Math.max(0, score - 6), hs2 = Math.min(100, score + 6);
+      highlightEl.setAttribute('d', lsArcPath(LS_CX, LS_CY, LS_R, hs1, hs2));
+      highlightEl.setAttribute('stroke', color);
+
+      const p = lsPt(LS_CX, LS_CY, LS_R, score);
+      dotEl.setAttribute('cx', p.x.toFixed(2)); dotEl.setAttribute('cy', p.y.toFixed(2));
+      glowEl.setAttribute('cx', p.x.toFixed(2)); glowEl.setAttribute('cy', p.y.toFixed(2)); glowEl.setAttribute('fill', color);
+
+      percentEl.textContent = Math.round(score) + '%';
+      percentEl.setAttribute('fill', color);
+      labelEl.textContent = scoreToLabel(score);
+
+      if (t < 1) { lsAnimFrameId = requestAnimationFrame(frame); }
+      else { lsAnimFrameId = null; }
+    }
+    lsAnimFrameId = requestAnimationFrame(frame);
+  }
+
   function updateBinanceSentimentUI() {
     const gaugeEl = document.getElementById('sentiment-gauge');
     if (!gaugeEl) return;
+    if (!gaugeEl.classList.contains('ls-ready')) buildGaugeShell();
     const score = ratioToScore(binanceLSRatio);
-    gaugeEl.innerHTML = buildGaugeSVG(score) + `<div style="text-align:center; margin-top:2px; font-size:11.5px; color:var(--text-dim); font-family:'JetBrains Mono', monospace;">Tỷ lệ L/S thực tế: <b style="color:#c7cdda">${binanceLSRatio.toFixed(2)}</b> (Long:Short)</div>`;
+
+    animateGaugeTo(score);
+
+    const ratioEl = document.getElementById('ls-ratio');
+    if (ratioEl) ratioEl.textContent = binanceLSRatio.toFixed(2);
+
+    const deltaEl = document.getElementById('ls-delta');
+    if (deltaEl && lsPrevScore !== null) {
+      const diff = score - lsPrevScore;
+      if (Math.abs(diff) < 0.05) { deltaEl.textContent = '• Không đổi'; deltaEl.className = 'ls-delta flat'; }
+      else if (diff > 0) { deltaEl.textContent = `▲ +${diff.toFixed(1)}% Long`; deltaEl.className = 'ls-delta up'; }
+      else { deltaEl.textContent = `▼ ${diff.toFixed(1)}% Long`; deltaEl.className = 'ls-delta down'; }
+      // Ripple nhẹ báo hiệu vừa cập nhật dữ liệu mới
+      deltaEl.classList.remove('pulse'); void deltaEl.offsetWidth; deltaEl.classList.add('pulse');
+    }
+    lsPrevScore = score;
   }
   setInterval(() => fetchBinanceSentiment(currentSymbol), 30000); 
   setTimeout(() => fetchBinanceSentiment(currentSymbol), 1000);
@@ -203,11 +283,53 @@
   }
   updateCSSVariables(currentUpColor, currentDownColor);
 
-  const commonOptions = { layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#7c8598' }, grid: { vertLines: { color: '#171c27' }, horzLines: { color: '#171c27' } }, rightPriceScale: { minimumWidth: 90 } };
-  const chartPrice = LightweightCharts.createChart(document.getElementById('chart-price'), { ...commonOptions, crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, timeScale: { timeVisible: true, visible: false } });
+  const commonOptions = {
+    layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#7c8598' },
+    grid: { vertLines: { color: '#171c27' }, horzLines: { color: '#171c27' } },
+    rightPriceScale: { minimumWidth: 90, alignLabels: true, scaleMargins: { top: 0.15, bottom: 0.15 } },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: {
+        color: '#7c8598',
+        style: LightweightCharts.LineStyle.Dashed,
+        width: 1,
+        labelVisible: true,
+        labelBackgroundColor: '#10141c',
+        labelTextColor: '#e7eaf0',
+        labelFontSize: 11
+      },
+      horzLine: {
+        color: '#7c8598',
+        style: LightweightCharts.LineStyle.Dashed,
+        width: 1,
+        labelVisible: true,
+        labelBackgroundColor: '#10141c',
+        labelTextColor: '#e7eaf0',
+        labelFontSize: 11
+      }
+    }
+  };
+  const chartPrice = LightweightCharts.createChart(document.getElementById('chart-price'), { ...commonOptions, timeScale: { timeVisible: true, visible: false } });
   const candleSeries = chartPrice.addCandlestickSeries({ upColor: currentUpColor, downColor: currentDownColor, borderVisible: false, wickUpColor: currentUpColor, wickDownColor: currentDownColor });
-  const chartVolume = LightweightCharts.createChart(document.getElementById('chart-volume'), { ...commonOptions, crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, timeScale: { timeVisible: true, visible: false } });
-  const volumeSeries = chartVolume.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'right' });
+  const volumePane = document.getElementById('chart-volume');
+  const chartVolume = LightweightCharts.createChart(volumePane, {
+    ...commonOptions,
+    crosshair: { ...commonOptions.crosshair, mode: LightweightCharts.CrosshairMode.Normal },
+    timeScale: { timeVisible: true, visible: false, rightOffset: 0 },
+    leftPriceScale: { visible: false, borderVisible: false, minWidth: 0 },
+    rightPriceScale: { visible: true, borderVisible: false, alignLabels: true, minimumWidth: 90, scaleMargins: { top: 0.15, bottom: 0.15 } }
+  });
+  const volumeSeries = chartVolume.addHistogramSeries({
+    priceFormat: {
+      type: 'custom',
+      formatter: price => {
+        if (Math.abs(price) >= 1000000) return (price / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+        if (Math.abs(price) >= 1000) return (price / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+        return price.toFixed(0);
+      }
+    },
+    priceScaleId: 'right'
+  });
 
   // ===== HỆ THỐNG CHỈ BÁO KỸ THUẬT ĐỘNG: thêm / xóa / kéo-thả đổi pane =====
   // Mỗi pane là 1 chart lightweight-charts riêng (đồng bộ trục thời gian).
@@ -275,16 +397,118 @@
   function saveIndicators() { localStorage.setItem('ok_indicators_v2', JSON.stringify(indicators)); }
 
   // ===== CHART RSI mặc định (pane có sẵn) =====
-  const chartRSI = LightweightCharts.createChart(document.getElementById('chart-rsi'), { ...commonOptions, crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, timeScale: { timeVisible: true }, rightPriceScale: { minimumWidth: 90, scaleMargins: { top: 0.15, bottom: 0.15 } } });
+  const chartRSI = LightweightCharts.createChart(document.getElementById('chart-rsi'), { ...commonOptions, crosshair: { ...commonOptions.crosshair, mode: LightweightCharts.CrosshairMode.Normal }, timeScale: { timeVisible: true }, rightPriceScale: { minimumWidth: 90, scaleMargins: { top: 0.15, bottom: 0.15 } } });
 
   const paneRegistry = {
     price: { chart: chartPrice, elId: 'chart-price' },
     volume: { chart: chartVolume, elId: 'chart-volume' },
     rsi: { chart: chartRSI, elId: 'chart-rsi', homeType: 'rsi' }
   };
+  function clearAllCrosshairs() {
+    Object.values(paneRegistry).forEach(reg => { if (reg && reg.chart) reg.chart.clearCrosshairPosition(); });
+  }
+  function getPaneChartElement(paneId) {
+    const reg = paneRegistry[paneId]; return reg ? document.getElementById(reg.elId) : null;
+  }
+  function getIndicatorValueForPane(paneId, time) {
+    for (const ind of indicators) {
+      if (ind.pane !== paneId || !ind.visible) continue;
+      const store = seriesStore[ind.id];
+      if (!store || !store.dataMap) continue;
+      const value = store.dataMap.get(time);
+      if (value !== undefined && value !== null) return value;
+    }
+    return null;
+  }
+  function getPaneCrosshairValue(paneId, time) {
+    if (paneId === 'price') {
+      const c = candlesDataMap.get(time); return c ? c.close : null;
+    }
+    if (paneId === 'volume') {
+      const v = volumesDataMap.get(time); return v ? v.value : null;
+    }
+    return getIndicatorValueForPane(paneId, time);
+  }
+  function getPaneCrosshairSeries(paneId) {
+    if (paneId === 'price') return candleSeries;
+    if (paneId === 'volume') return volumeSeries;
+    const ind = indicators.find(i => i.pane === paneId && i.visible);
+    if (!ind) return null;
+    const store = seriesStore[ind.id];
+    return store && store.series && store.series[0] ? store.series[0] : null;
+  }
+  function buildValueMap(data) {
+    const map = new Map();
+    if (!Array.isArray(data)) return map;
+    data.forEach(item => { if (item && item.time !== undefined && item.value !== undefined) map.set(item.time, item.value); });
+    return map;
+  }
+  function isChartPointValid(paneId, param) {
+    if (!param || !param.point || param.time === undefined || param.time === null) return false;
+    if (param.point.x < 0 || param.point.y < 0) return false;
+    const el = getPaneChartElement(paneId);
+    if (!el) return false;
+    return param.point.x <= el.clientWidth && param.point.y <= el.clientHeight;
+  }
+  function syncCrosshairAcrossCharts(sourcePaneId, time) {
+    Object.entries(paneRegistry).forEach(([paneId, reg]) => {
+      if (!reg || paneId === sourcePaneId) return;
+      const value = getPaneCrosshairValue(paneId, time);
+      const series = getPaneCrosshairSeries(paneId);
+      if (value === null || series === null) { reg.chart.clearCrosshairPosition(); return; }
+      reg.chart.setCrosshairPosition(value, time, series);
+    });
+  }
+  function attachCrosshairSync(chart, paneId) {
+    chart.subscribeCrosshairMove(param => {
+      if (isResizing) return;
+      if (!isChartPointValid(paneId, param)) { clearAllCrosshairs(); if (paneId === 'price') tooltip.style.display = 'none'; updateAllLegendValues(); return; }
+      syncCrosshairAcrossCharts(paneId, param.time);
+      updateAllLegendValues(param.time);
+    });
+  }
+  function resizeAllCharts() {
+    const wrapper = document.getElementById('chart-wrapper');
+    if (!wrapper) return;
+    const width = wrapper.clientWidth;
+    Object.values(paneRegistry).forEach(reg => {
+      const el = document.getElementById(reg.elId);
+      if (!el || !reg.chart) return;
+      const height = el.clientHeight || 120;
+      reg.chart.applyOptions({ width, height });
+    });
+    syncPriceScaleWidths();
+  }
+
+  // ===== Ép TẤT CẢ các pane (giá / volume / RSI / chỉ báo động) dùng CHUNG một độ rộng trục phải =====
+  // Mặc định mỗi chart lightweight-charts tự co giãn trục theo độ dài số của chính nó (VD: "66000.00" dài hơn
+  // "70.00" dài hơn "15K"), khiến vùng vẽ nến/cột/đường bị lệch pixel giữa các pane dù cùng 1 mốc thời gian
+  // (đây chính là hiện tượng "3 biểu đồ lệch nhau" trong ảnh). Đo độ rộng lớn nhất rồi áp lại cho mọi pane
+  // để cột nến, cột volume và đường RSI luôn thẳng hàng theo trục dọc, giống chuẩn Binance/TradingView.
+  let widthSyncPending = false;
+  function syncPriceScaleWidths() {
+    if (widthSyncPending) return;
+    widthSyncPending = true;
+    requestAnimationFrame(() => {
+      widthSyncPending = false;
+      const regs = Object.values(paneRegistry).filter(r => r && r.chart);
+      if (!regs.length) return;
+      let maxWidth = 90;
+      regs.forEach(reg => {
+        try {
+          const w = reg.chart.priceScale('right').width();
+          if (w && w > maxWidth) maxWidth = w;
+        } catch (e) {}
+      });
+      regs.forEach(reg => {
+        try { reg.chart.priceScale('right').applyOptions({ minimumWidth: maxWidth }); } catch (e) {}
+      });
+    });
+  }
   function updatePaneAxisVisibility() {
     const panes = Array.from(document.getElementById('chart-wrapper').querySelectorAll('.sub-pane'));
     panes.forEach((p, idx) => { const reg = paneRegistry[p.dataset.pane]; if (reg) reg.chart.applyOptions({ timeScale: { visible: idx === panes.length - 1 } }); });
+    requestAnimationFrame(resizeAllCharts);
   }
 
   // ===== Đồng bộ trục thời gian (mesh) — tự động cuốn theo pane mới tạo =====
@@ -335,27 +559,30 @@
     return out;
   }
 
-  // ===== Xác định price scale cho từng chỉ báo: chia sẻ trục phải nếu là chỉ báo "đúng nhà" của pane,
-  // nếu là chỉ báo bị kéo/ghép sang pane khác thì dùng trục trái riêng để KHÔNG làm sai lệch thang đo =====
+  // ===== Xác định price scale cho từng chỉ báo: chia sẻ trục phải nếu là chỉ báo "đúng nhà" của pane.
+  // Nếu chỉ báo bị kéo/ghép sang pane khác, dùng một trục ẨN riêng (không vẽ, độ rộng = 0) để tự co giãn
+  // độc lập mà KHÔNG chiếm thêm bề ngang — vì trục trái hiển thị sẽ làm pane đó rộng hơn pane khác,
+  // khiến nến/cột/đường bị lệch cột với các pane còn lại (đây chính là nguyên nhân "3 biểu đồ lệch nhau"). =====
   const seriesStore = {}; // id -> { series:[...], scaleId, guides:[...] }
   function decideScale(ind) {
     const def = INDICATOR_CATALOG[ind.type];
-    if (ind.pane === 'price') return def.category === 'overlay' ? 'right' : 'left';
-    if (ind.pane === 'volume') return ind.type === 'volma' ? 'right' : 'left';
+    if (ind.pane === 'price') return def.category === 'overlay' ? 'right' : ('hidden-' + ind.id);
+    if (ind.pane === 'volume') return ind.type === 'volma' ? 'right' : ('hidden-' + ind.id);
     const reg = paneRegistry[ind.pane];
-    return (reg && reg.homeType === ind.type) ? 'right' : 'left';
+    return (reg && reg.homeType === ind.type) ? 'right' : ('hidden-' + ind.id);
   }
+  function isHiddenScaleId(scaleId) { return typeof scaleId === 'string' && scaleId.indexOf('hidden-') === 0; }
   function refreshLeftScaleVisibility(paneId) {
     const reg = paneRegistry[paneId]; if (!reg) return;
-    const needLeft = indicators.some(i => i.pane === paneId && decideScale(i) === 'left');
-    reg.chart.applyOptions({ leftPriceScale: { visible: needLeft, borderVisible: false } });
+    reg.chart.applyOptions({ leftPriceScale: { visible: false, borderVisible: false } });
   }
   function createSeriesForIndicator(ind) {
     const reg = paneRegistry[ind.pane]; if (!reg) return;
     const chart = reg.chart; const scaleId = decideScale(ind);
-    if (scaleId === 'left') chart.applyOptions({ leftPriceScale: { visible: true, borderVisible: false } });
     const lineStyle = LINE_STYLE_MAP[ind.style] ?? 0;
-    const mkLine = (color, width, extra) => chart.addLineSeries(Object.assign({ color, lineWidth: width, lineStyle, priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: true, visible: ind.visible }, extra || {}));
+    // lastValueVisible: false — tránh chồng ô giá trị lên trục phải khi nhiều đường (EMA/RSI...) có giá trị gần nhau.
+    // Giá trị hiện tại của từng chỉ báo được hiển thị trong legend góc trái (giống Binance/TradingView), không phải trên trục.
+    const mkLine = (color, width, extra) => chart.addLineSeries(Object.assign({ color, lineWidth: width, lineStyle, priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: true, visible: ind.visible }, extra || {}));
     let series = []; const guides = [];
     if (ind.type === 'sma' || ind.type === 'ema' || ind.type === 'volma') {
       series = [mkLine(ind.color, ind.width)];
@@ -377,7 +604,10 @@
       guides.push(k.createPriceLine({ price: 80, color: '#ff475766', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '80' }));
       guides.push(k.createPriceLine({ price: 20, color: '#14cc8a66', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '20' }));
     }
-    seriesStore[ind.id] = { series, scaleId, guides };
+    seriesStore[ind.id] = { series, scaleId, guides, dataMap: new Map() };
+    if (isHiddenScaleId(scaleId)) {
+      try { chart.priceScale(scaleId).applyOptions({ visible: false, borderVisible: false, minimumWidth: 0 }); } catch (e) {}
+    }
   }
   function removeSeriesForIndicator(ind) {
     const store = seriesStore[ind.id]; if (!store) return;
@@ -411,33 +641,59 @@
     const vols = volumesData.map(v => v.value);
     indicators.forEach(ind => {
       const store = seriesStore[ind.id]; if (!store) return;
-      if (ind.type === 'sma') { const arr = computeSMA(closes, ind.period); store.series[0].setData(toLineData(times, arr, ind.period - 1)); }
-      else if (ind.type === 'ema') { const arr = computeEMA(closes, ind.period); store.series[0].setData(toLineData(times, arr, ind.period - 1)); }
-      else if (ind.type === 'volma') { const arr = computeSMA(vols, ind.period); store.series[0].setData(toLineData(times, arr, ind.period - 1)); }
-      else if (ind.type === 'bb') {
+      if (ind.type === 'sma') {
+        const arr = computeSMA(closes, ind.period);
+        const data = toLineData(times, arr, ind.period - 1);
+        store.series[0].setData(data);
+        store.dataMap = buildValueMap(data);
+      } else if (ind.type === 'ema') {
+        const arr = computeEMA(closes, ind.period);
+        const data = toLineData(times, arr, ind.period - 1);
+        store.series[0].setData(data);
+        store.dataMap = buildValueMap(data);
+      } else if (ind.type === 'volma') {
+        const arr = computeSMA(vols, ind.period);
+        const data = toLineData(times, arr, ind.period - 1);
+        store.series[0].setData(data);
+        store.dataMap = buildValueMap(data);
+      } else if (ind.type === 'bb') {
         const bb = computeBollinger(closes, ind.period, ind.mult);
-        store.series[0].setData(toLineData(times, bb.basis, ind.period - 1));
-        store.series[1].setData(toLineData(times, bb.upper, ind.period - 1));
-        store.series[2].setData(toLineData(times, bb.lower, ind.period - 1));
+        const basis = toLineData(times, bb.basis, ind.period - 1);
+        const upper = toLineData(times, bb.upper, ind.period - 1);
+        const lower = toLineData(times, bb.lower, ind.period - 1);
+        store.series[0].setData(basis);
+        store.series[1].setData(upper);
+        store.series[2].setData(lower);
+        store.dataMap = buildValueMap(basis);
       } else if (ind.type === 'rsi') {
         const rsiArr = computeRSI(closes, ind.period); const smaArr = computeSMA(rsiArr, ind.smaPeriod);
-        store.series[0].setData(toLineData(times, rsiArr, ind.period));
-        store.series[1].setData(toLineData(times, smaArr, ind.period + ind.smaPeriod - 1));
+        const main = toLineData(times, rsiArr, ind.period);
+        const sig = toLineData(times, smaArr, ind.period + ind.smaPeriod - 1);
+        store.series[0].setData(main);
+        store.series[1].setData(sig);
+        store.dataMap = buildValueMap(main);
       } else if (ind.type === 'macd') {
         const { macd, sig, hist } = computeMACD(closes, ind.fast, ind.slow, ind.signal);
         const from = ind.slow - 1; const fromSig = from + ind.signal - 1;
-        store.series[0].setData(toLineData(times, macd, from));
-        store.series[1].setData(toLineData(times, sig, fromSig));
+        const main = toLineData(times, macd, from);
+        const signal = toLineData(times, sig, fromSig);
+        store.series[0].setData(main);
+        store.series[1].setData(signal);
         const histData = [];
         for (let i = fromSig; i < times.length; i++) { if (hist[i] == null) continue; histData.push({ time: times[i], value: hist[i], color: hist[i] >= 0 ? (currentUpColor + '99') : (currentDownColor + '99') }); }
         store.series[2].setData(histData);
+        store.dataMap = buildValueMap(main);
       } else if (ind.type === 'stoch') {
         const { k, d } = computeStochastic(highs, lows, closes, ind.kPeriod, ind.dPeriod, ind.smooth);
-        const fromK = ind.kPeriod + ind.smooth - 2; const fromD = fromK + ind.dPeriod - 1;
-        store.series[0].setData(toLineData(times, k, fromK));
-        store.series[1].setData(toLineData(times, d, fromD));
+        const main = toLineData(times, k, ind.kPeriod + ind.smooth - 2);
+        const sig = toLineData(times, d, ind.kPeriod + ind.smooth - 2 + ind.dPeriod - 1);
+        store.series[0].setData(main);
+        store.series[1].setData(sig);
+        store.dataMap = buildValueMap(main);
       }
     });
+    updateAllLegendValues();
+    syncPriceScaleWidths();
   }
 
   // ===== Tạo / xóa PANE ĐỘNG cho các chỉ báo dao động (oscillator) tự thêm =====
@@ -449,16 +705,23 @@
     paneEl.className = 'sub-pane'; paneEl.id = 'pane-' + id; paneEl.dataset.pane = id;
     paneEl.innerHTML = `<div class="pane-header"><span class="pane-drag" title="Kéo để đổi vị trí">⠿</span><span class="pane-title">${INDICATOR_CATALOG[homeType].label}</span><button class="pane-remove" type="button" title="Xóa toàn bộ pane">🗑</button></div><div id="chart-${id}" style="position:relative; height:130px;"><div class="chart-legend" id="legend-${id}"></div></div>`;
     wrapper.appendChild(paneEl);
-    const chart = LightweightCharts.createChart(document.getElementById('chart-' + id), { ...commonOptions, crosshair: { mode: LightweightCharts.CrosshairMode.Normal }, timeScale: { timeVisible: true }, rightPriceScale: { minimumWidth: 90, scaleMargins: { top: 0.15, bottom: 0.15 } } });
+    const chart = LightweightCharts.createChart(document.getElementById('chart-' + id), {
+      ...commonOptions,
+      crosshair: { ...commonOptions.crosshair, mode: LightweightCharts.CrosshairMode.Normal },
+      timeScale: { timeVisible: true },
+      leftPriceScale: { visible: false, borderVisible: false },
+      rightPriceScale: { minimumWidth: 90, scaleMargins: { top: 0.15, bottom: 0.15 } }
+    });
     paneRegistry[id] = { chart, elId: 'chart-' + id, homeType };
     registerTimeScale(chart.timeScale());
+    attachCrosshairSync(chart, id);
     attachPaneHeaderEvents(paneEl.querySelector('.pane-header'));
     attachPaneReorderDropTarget(paneEl);
     attachPaneDropZone(paneEl, id);
     paneEl.querySelector('.pane-remove').addEventListener('click', () => { if (confirm('Xóa toàn bộ pane này cùng các chỉ báo bên trong?')) removeDynamicPane(id); });
     initLegendEvents('legend-' + id, id);
     updatePaneAxisVisibility();
-    setTimeout(() => { const cw = document.querySelector('.chart-wrapper').clientWidth; chart.applyOptions({ width: cw }); }, 0);
+    requestAnimationFrame(resizeAllCharts);
     return id;
   }
   function removeDynamicPane(paneId) {
@@ -482,6 +745,7 @@
     indicators.push(ind);
     createSeriesForIndicator(ind);
     saveIndicators(); updateAllIndicators(); renderAllLegends(); closeIndicatorMenu();
+    requestAnimationFrame(resizeAllCharts);
   }
   function deleteIndicator(id, skipPaneCleanup) {
     const idx = indicators.findIndex(i => i.id === id); if (idx === -1) return;
@@ -581,11 +845,26 @@
       const item = document.createElement('div');
       item.className = 'ind-item' + (ind.visible ? '' : ' ind-hidden');
       item.draggable = true; item.dataset.key = ind.id;
-      item.innerHTML = `<span class="ind-drag">⋮⋮</span><span class="ind-dot" style="background:${ind.color}"></span><span class="ind-label">${labelFor(ind)}</span><button class="ind-eye" data-key="${ind.id}" type="button" title="Ẩn/hiện">${ind.visible ? '👁' : '🚫'}</button><button class="ind-gear" data-key="${ind.id}" type="button" title="Cài đặt">⚙</button><button class="ind-trash" data-key="${ind.id}" type="button" title="Xóa">🗑</button>`;
+      item.innerHTML = `<span class="ind-drag">⋮⋮</span><span class="ind-dot" style="background:${ind.color}"></span><span class="ind-label">${labelFor(ind)}</span><span class="ind-value" data-key="${ind.id}" style="color:${ind.color}"></span><button class="ind-eye" data-key="${ind.id}" type="button" title="Ẩn/hiện">${ind.visible ? '👁' : '🚫'}</button><button class="ind-gear" data-key="${ind.id}" type="button" title="Cài đặt">⚙</button><button class="ind-trash" data-key="${ind.id}" type="button" title="Xóa">🗑</button>`;
       container.appendChild(item);
     });
   }
-  function renderAllLegends() { Object.keys(paneRegistry).forEach(renderLegend); }
+  function renderAllLegends() { Object.keys(paneRegistry).forEach(renderLegend); updateAllLegendValues(); }
+
+  // ===== Hiển thị giá trị hiện tại (hoặc giá trị tại điểm đang rê chuột) của từng chỉ báo trong legend =====
+  // Thay thế cho nhãn giá trị trên trục phải (đã tắt ở mkLine) để tránh chồng chéo con số như trên các sàn lớn.
+  function getLatestTime() { return candlesData.length ? candlesData[candlesData.length - 1].time : null; }
+  function updateLegendValues(paneId, time) {
+    const container = document.getElementById(paneLegendElId(paneId)); if (!container) return;
+    const t = (time === undefined || time === null) ? getLatestTime() : time;
+    indicators.filter(i => i.pane === paneId).forEach(ind => {
+      const store = seriesStore[ind.id]; const el = container.querySelector(`.ind-value[data-key="${ind.id}"]`);
+      if (!store || !el) return;
+      const val = (t !== null && t !== undefined) ? store.dataMap.get(t) : null;
+      el.textContent = (val === null || val === undefined) ? '' : fmt(val);
+    });
+  }
+  function updateAllLegendValues(time) { Object.keys(paneRegistry).forEach(paneId => updateLegendValues(paneId, time)); }
   function initLegendEvents(containerId, paneId) {
     const container = document.getElementById(containerId); if (!container) return;
     container.addEventListener('click', e => {
@@ -661,7 +940,7 @@
       if (before) wrapper.insertBefore(dragPaneEl, pane); else wrapper.insertBefore(dragPaneEl, pane.nextSibling);
       pane.classList.remove('drop-target-before', 'drop-target-after');
       savePaneOrder(); updatePaneAxisVisibility();
-      setTimeout(() => { Object.values(paneRegistry).forEach(r => r.chart.applyOptions({})); window.dispatchEvent(new Event('resize')); }, 0);
+      setTimeout(() => { resizeAllCharts(); window.dispatchEvent(new Event('resize')); }, 0);
     });
   }
 
@@ -675,6 +954,7 @@
     saveIndicators();
   }
   mountAllIndicators();
+  requestAnimationFrame(resizeAllCharts);
   // Pane RSI gốc từng bị người dùng xóa hết chỉ báo trong phiên trước -> dọn luôn, tránh khung rỗng "hồi sinh"
   if (paneRegistry.rsi && !indicators.some(i => i.pane === 'rsi')) removeDynamicPane('rsi');
   initLegendEvents('price-legend', 'price');
@@ -732,9 +1012,14 @@
 
   chartPrice.subscribeCrosshairMove(param => {
     if (isResizing) { tooltip.style.display = 'none'; return; }
-    if (!param.time || param.point === undefined || param.point.x < 0 || param.point.y < 0 || param.point.x > document.getElementById('chart-price').clientWidth || param.point.y > document.getElementById('chart-price').clientHeight) { chartVolume.clearCrosshairPosition(); tooltip.style.display = 'none'; return; }
-    const volData = volumesDataMap.get(param.time); if (volData) chartVolume.setCrosshairPosition(volData.value, param.time, volumeSeries);
-    const c = candlesDataMap.get(param.time); if (!c) { tooltip.style.display = 'none'; return; }
+    if (!param.time || param.point === undefined || param.point.x < 0 || param.point.y < 0 || param.point.x > document.getElementById('chart-price').clientWidth || param.point.y > document.getElementById('chart-price').clientHeight) {
+      clearAllCrosshairs(); tooltip.style.display = 'none'; updateAllLegendValues(); return;
+    }
+    syncCrosshairAcrossCharts('price', param.time);
+    updateAllLegendValues(param.time);
+    const volData = volumesDataMap.get(param.time);
+    const c = candlesDataMap.get(param.time);
+    if (!c) { tooltip.style.display = 'none'; return; }
     const isUp = c.close >= c.open; const color = isUp ? currentUpColor : currentDownColor;
     
     let html = `<div style="font-weight:700; margin-bottom: 8px; border-bottom: 1px solid #2d3342; padding-bottom:6px">${fmtTime(param.time)}</div>`;
@@ -762,16 +1047,21 @@
         }
     }
     tooltip.innerHTML = html; tooltip.style.display = 'block';
-    let x = param.point.x; let y = param.point.y; const tooltipW = tooltip.offsetWidth || 160; const chartW = document.getElementById('chart-price').clientWidth;
+    const chartEl = document.getElementById('chart-price');
+    let x = param.point.x; let y = param.point.y;
+    const tooltipW = tooltip.offsetWidth || 160; const tooltipH = tooltip.offsetHeight || 120;
+    const chartW = chartEl.clientWidth; const chartH = chartEl.clientHeight;
+    // Căn trái/phải và trên/dưới theo mép chart để tooltip không bao giờ bị cắt/tràn ra ngoài
     if (x + tooltipW + 20 > chartW) { x = x - tooltipW - 15; } else { x = x + 15; }
-    tooltip.style.left = x + 'px'; tooltip.style.top = (y + 15) + 'px';
+    x = Math.max(4, Math.min(x, chartW - tooltipW - 4));
+    let top = y + 15;
+    if (top + tooltipH + 10 > chartH) { top = y - tooltipH - 15; }
+    top = Math.max(4, Math.min(top, chartH - tooltipH - 4));
+    tooltip.style.left = x + 'px'; tooltip.style.top = top + 'px';
   });
 
-  chartVolume.subscribeCrosshairMove(param => {
-    if (isResizing) return;
-    if (!param.point || param.time === undefined || param.point.x < 0 || param.point.y < 0 || param.point.x > volumePane.clientWidth || param.point.y > volumePane.clientHeight){ chartPrice.clearCrosshairPosition(); return; }
-    const cData = candlesDataMap.get(param.time); if (cData) chartPrice.setCrosshairPosition(cData.close, param.time, candleSeries);
-  });
+  attachCrosshairSync(chartVolume, 'volume');
+  attachCrosshairSync(chartRSI, 'rsi');
 
   function renderWhaleLogs() {
     const list = document.getElementById('whale-log-list'); list.innerHTML = '';
@@ -1066,7 +1356,7 @@
   document.getElementById('symbol-input').addEventListener('keypress', e => { if (e.key === 'Enter') executeSearch(false); });
   document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', function(){ document.getElementById('symbol-input').value = this.getAttribute('data-symbol'); executeSearch(true); }));
   document.querySelectorAll('.tf-btn').forEach(btn => btn.addEventListener('click', function() { document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active')); this.classList.add('active'); currentInterval = this.getAttribute('data-interval'); localStorage.setItem('ok_interval', currentInterval); updateChart(); }));
-  window.addEventListener('resize', () => { const cw = document.querySelector('.chart-wrapper').clientWidth; Object.values(paneRegistry).forEach(r => r.chart.applyOptions({ width: cw })); });
+  window.addEventListener('resize', resizeAllCharts);
   
   document.getElementById('ai-switch').addEventListener('click', function() {
     aiEnabled = !aiEnabled;
@@ -1075,4 +1365,3 @@
     if (typeof runAIAnalysis === 'function') runAIAnalysis();
   });
   updateChart();
-
