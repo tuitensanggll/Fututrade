@@ -320,19 +320,39 @@
     }).join('');
     if (!isRefreshOnly) { items.forEach(it => seenNewsIds.add(it.id)); newsFirstLoad = false; }
   }
-  async function tryFetchJson(url) {
-    const res = await fetch(url);
+  async function tryFetchJson(url, headers) {
+    const res = await fetch(url, headers ? { headers } : undefined);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return res.json();
   }
   // Nhiều nguồn dự phòng: nếu nguồn 1 bị chặn CORS/rate-limit trên môi trường host (VD GitHub Pages),
   // tự động rơi (fallback) sang nguồn kế tiếp thay vì phụ thuộc vào đúng 1 API duy nhất.
+  // ⚠️ DÁN API KEY MIỄN PHÍ CỦA BẠN VÀO ĐÂY (lấy tại https://openapi.coinstats.app — đăng ký free, không cần thẻ):
+  const COINSTATS_API_KEY = 'ed9c3d6960e6737cb4f8bf0988db2008a3b252162316'; // VD: 'ab12cd34-...'
+
   const NEWS_SOURCES = [
+    ...(COINSTATS_API_KEY ? [{ type: 'coinstats', url: 'https://openapiv1.coinstats.app/news?limit=20' }] : []),
     { type: 'cryptocompare', url: 'https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest' },
     { type: 'rss2json', url: 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://www.coindesk.com/arc/outboundfeeds/rss/') + '&count=20' },
     { type: 'rss2json', url: 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://cointelegraph.com/rss') + '&count=20' }
   ];
   function parseSourceItems(type, json) {
+    if (type === 'coinstats') {
+      const arr = Array.isArray(json) ? json : (Array.isArray(json && json.news) ? json.news : (Array.isArray(json && json.result) ? json.result : []));
+      if (!arr.length) return [];
+      return arr.slice(0, 20).map(a => {
+        const rawTime = a.feedDate || a.publishedAt || a.createdAt || a.date;
+        const ts = typeof rawTime === 'number' ? (rawTime > 2e10 ? Math.floor(rawTime / 1000) : rawTime) : Math.floor(Date.parse(rawTime || '') / 1000);
+        return {
+          id: String(a.id || a._id || a.link || a.url),
+          title: a.title || a.name || '',
+          url: a.link || a.url || a.sourceUrl || '#',
+          source: a.source || a.feedName || 'CoinStats',
+          time: isNaN(ts) ? Math.floor(Date.now() / 1000) : ts,
+          img: a.imgUrl || a.image || a.thumbnail || ''
+        };
+      }).filter(it => it.title);
+    }
     if (type === 'cryptocompare') {
       if (!json || !Array.isArray(json.Data)) return [];
       return json.Data.slice(0, 20).map(a => ({
@@ -362,7 +382,8 @@
     let lastError = null;
     for (const src of NEWS_SOURCES) {
       try {
-        const json = await tryFetchJson(src.url);
+        const headers = src.type === 'coinstats' ? { 'X-API-KEY': COINSTATS_API_KEY } : undefined;
+        const json = await tryFetchJson(src.url, headers);
         const items = parseSourceItems(src.type, json);
         if (items.length) {
           lastNewsItems = items;
