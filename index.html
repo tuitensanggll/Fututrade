@@ -65,6 +65,14 @@
       </div>
       <div class="sentiment-gauge" id="fng-gauge"></div>
     </div>
+
+    <div class="news-card" id="news-card">
+      <div class="sentiment-head">
+        <div class="sentiment-title">Tin tức nóng <span id="news-live-badge"></span></div>
+        <div class="news-updated" id="news-updated"></div>
+      </div>
+      <div class="news-list" id="news-list"><div class="news-empty">Đang tải tin tức...</div></div>
+    </div>
   </div>
 
   <div class="trend-panel" id="trend-panel">
@@ -86,9 +94,9 @@
         <span class="ai-toggle-label">Màu:</span>
         <input type="color" id="color-up" value="#14cc8a" title="Màu nến tăng">
         <input type="color" id="color-down" value="#ff4757" title="Màu nến giảm">
-        <button id="btn-screenshot" style="margin-left:6px; background:var(--surface-alt); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">📸 Chụp</button>
-        <button id="btn-settings" style="margin-left:4px; background:var(--surface-alt); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">⚙️ Cài đặt Volume cá mập</button>
-        <button id="btn-add-indicator" class="btn-add-ind" style="margin-left:4px;">📊 Chỉ báo</button>
+        <button id="btn-screenshot" class="tf-action-btn">📸 <span class="btn-txt">Chụp</span></button>
+        <button id="btn-settings" class="tf-action-btn">⚙️ <span class="btn-txt">Cài đặt Volume cá mập</span></button>
+        <button id="btn-add-indicator" class="btn-add-ind tf-action-btn">📊 <span class="btn-txt">Chỉ báo</span></button>
       </div>
       <div class="ai-toggle">
         <span class="ai-toggle-label">🤖 AI Tín hiệu</span>
