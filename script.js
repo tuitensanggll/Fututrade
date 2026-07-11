@@ -310,7 +310,8 @@
     if (!items.length) { listEl.innerHTML = '<div class="news-empty">Chưa có tin tức.</div>'; return; }
     listEl.innerHTML = items.map(it => {
       const isNew = !isRefreshOnly && !newsFirstLoad && !seenNewsIds.has(it.id);
-      return `<a class="news-item${isNew ? ' is-new' : ''}" href="${it.url}" target="_blank" rel="noopener noreferrer">
+      const origAttr = it.titleOriginal && it.titleOriginal !== it.title ? ` title="${it.titleOriginal.replace(/"/g, '&quot;')}"` : '';
+      return `<a class="news-item${isNew ? ' is-new' : ''}" href="${it.url}" target="_blank" rel="noopener noreferrer"${origAttr}>
         ${it.img ? `<img class="news-thumb" src="${it.img}" loading="lazy" onerror="this.style.display='none'">` : ''}
         <div class="news-body">
           <div class="news-title">${it.title}</div>
@@ -319,6 +320,33 @@
       </a>`;
     }).join('');
     if (!isRefreshOnly) { items.forEach(it => seenNewsIds.add(it.id)); newsFirstLoad = false; }
+  }
+  // Dịch tự động tiêu đề tin tức sang tiếng Việt (dùng API dịch miễn phí của Google, không cần key)
+  const newsTranslationCache = new Map();
+  async function translateToVi(text) {
+    if (!text) return text;
+    if (newsTranslationCache.has(text)) return newsTranslationCache.get(text);
+    try {
+      const res = await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=vi&dt=t&q=' + encodeURIComponent(text));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const translated = (data && Array.isArray(data[0])) ? data[0].map(seg => seg[0]).join('') : text;
+      newsTranslationCache.set(text, translated);
+      return translated;
+    } catch (error) {
+      console.warn('Lỗi dịch tiêu đề tin tức, giữ nguyên bản gốc:', error);
+      newsTranslationCache.set(text, text);
+      return text;
+    }
+  }
+  async function translateNewsItems(items) {
+    await Promise.all(items.map(async (it) => {
+      const original = it.title;
+      const translated = await translateToVi(original);
+      it.titleOriginal = original;
+      it.title = translated;
+    }));
+    return items;
   }
   async function tryFetchJson(url, headers) {
     const res = await fetch(url, headers ? { headers } : undefined);
@@ -384,8 +412,9 @@
       try {
         const headers = src.type === 'coinstats' ? { 'X-API-KEY': COINSTATS_API_KEY } : undefined;
         const json = await tryFetchJson(src.url, headers);
-        const items = parseSourceItems(src.type, json);
+        let items = parseSourceItems(src.type, json);
         if (items.length) {
+          items = await translateNewsItems(items);
           lastNewsItems = items;
           renderNewsList(items, false);
           const upd = document.getElementById('news-updated'); if (upd) upd.innerText = 'Cập nhật: ' + new Date().toLocaleTimeString('vi-VN');
@@ -1135,38 +1164,324 @@
   function fmtVol(n){ if(n>=1e9) return (n/1e9).toFixed(2)+'B'; if(n>=1e6) return (n/1e6).toFixed(2)+'M'; if(n>=1e3) return (n/1e3).toFixed(2)+'K'; return n.toFixed(2); }
   function fmtTime(t){ return new Date(t*1000).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
 
-  let currentTool = 'cursor'; let priceLines = []; let trendLines = []; let drawingTrendState = 0; let trendPoint1 = null;
+  // =========================================================
+  // HỆ THỐNG VẼ CHUYÊN NGHIỆP TRÊN BIỂU ĐỒ GIÁ
+  // Nguyên lý giống Binance/TradingView: 1 canvas trong suốt phủ lên chart,
+  // toạ độ mỗi điểm vẽ được lưu dưới dạng (thời gian, giá) — không phải pixel —
+  // nên khi kéo/zoom biểu đồ, canvas tự vẽ lại đúng vị trí mỗi khung hình (requestAnimationFrame).
+  // Dữ liệu vẽ được lưu riêng theo từng mã coin trong localStorage, giữ nguyên khi đổi khung thời gian.
+  // =========================================================
+  const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.272, 1.618];
+  const TOOL_POINTS = { trendline: 2, ray: 2, hline: 1, hray: 1, vline: 1, channel: 3, fib: 2, rect: 2, circle: 2, arrow: 2, text: 1, measure: 2 };
+  const HINT_TEXT = {
+    trendline: 'Click điểm đầu, rồi click điểm cuối để vẽ đường xu hướng',
+    ray: 'Click điểm đầu, rồi click hướng đi để vẽ tia xu hướng (kéo dài vô hạn)',
+    hline: 'Click vào biểu đồ để đặt đường ngang (kháng cự/hỗ trợ)',
+    hray: 'Click vào biểu đồ để đặt tia ngang bắt đầu từ điểm click',
+    vline: 'Click vào biểu đồ để đặt đường thẳng đứng đánh dấu thời điểm',
+    channel: 'Click 2 điểm để vẽ đường chính, click điểm thứ 3 để đặt độ rộng kênh',
+    fib: 'Click điểm đỉnh/đáy bắt đầu, rồi click điểm kết thúc để vẽ Fibonacci',
+    rect: 'Click 1 góc, rồi click góc đối diện để vẽ hình chữ nhật',
+    circle: 'Click 1 điểm, rồi click điểm còn lại để vẽ hình tròn/ê-líp',
+    polyline: 'Click nhiều điểm liên tiếp — nhấn Enter để hoàn tất, Esc để huỷ',
+    arrow: 'Click điểm bắt đầu, rồi click vị trí đầu mũi tên',
+    text: 'Click vào vị trí muốn chèn ghi chú',
+    measure: 'Click điểm đầu, rồi click điểm cuối để đo chênh lệch giá/%/số nến',
+    eraser: 'Click vào 1 bản vẽ để xoá riêng bản vẽ đó'
+  };
+
+  let currentTool = 'cursor';
+  let drawings = [];
+  let pendingPoints = [];
+  let previewPoint = null;
+  let selectedId = null;
+  let magnetOn = localStorage.getItem('ok_draw_magnet') === 'true';
+  let lockOn = localStorage.getItem('ok_draw_lock') === 'true';
+  let hiddenOn = false;
+  let W = 0, H = 0;
+
+  function drawColor() { return document.getElementById('draw-color')?.value || '#3d8bff'; }
+  function drawStorageKey() { return 'ok_drawings_' + currentSymbol; }
+  function saveDrawings() { try { localStorage.setItem(drawStorageKey(), JSON.stringify(drawings)); } catch (e) {} }
+  function loadDrawings() { try { drawings = JSON.parse(localStorage.getItem(drawStorageKey()) || '[]'); } catch (e) { drawings = []; } }
+  loadDrawings();
+
+  function showDrawToast(msg) {
+    const el = document.createElement('div'); el.className = 'draw-toast'; el.textContent = msg;
+    document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 250); }, 2200);
+  }
+
+  function nearestCandle(t) {
+    if (!candlesData.length) return null;
+    let lo = 0, hi = candlesData.length - 1;
+    if (t <= candlesData[0].time) return candlesData[0];
+    if (t >= candlesData[hi].time) return candlesData[hi];
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (candlesData[mid].time < t) lo = mid + 1; else hi = mid; }
+    const a = candlesData[lo - 1], b = candlesData[lo];
+    if (!a) return b;
+    return (t - a.time) < (b.time - t) ? a : b;
+  }
+  function snapPoint(time, price) {
+    if (!magnetOn) return { time, price };
+    const c = nearestCandle(time);
+    if (!c) return { time, price };
+    const vals = [c.open, c.high, c.low, c.close];
+    let best = price, bestDist = Infinity;
+    vals.forEach(v => { const d = Math.abs(v - price); if (d < bestDist) { bestDist = d; best = v; } });
+    return { time: c.time, price: best };
+  }
+  function countBarsBetween(t1, t2) {
+    const lo = Math.min(t1, t2), hi = Math.max(t1, t2); let c = 0;
+    for (const cd of candlesData) { if (cd.time >= lo && cd.time <= hi) c++; }
+    return Math.max(0, c - 1);
+  }
+  function textColorFor(bg) {
+    const r = parseInt(bg.slice(1, 3), 16), g = parseInt(bg.slice(3, 5), 16), b = parseInt(bg.slice(5, 7), 16);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.55 ? '#0b0f17' : '#ffffff';
+  }
+
+  // ===== Canvas phủ lên #chart-price =====
+  const drawCanvas = document.createElement('canvas');
+  drawCanvas.id = 'drawing-canvas';
+  document.getElementById('chart-price').appendChild(drawCanvas);
+  const dctx = drawCanvas.getContext('2d');
+  function resizeDrawCanvas() {
+    const host = document.getElementById('chart-price'); if (!host) return;
+    W = host.clientWidth; H = host.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    drawCanvas.width = Math.max(1, Math.round(W * dpr)); drawCanvas.height = Math.max(1, Math.round(H * dpr));
+    drawCanvas.style.width = W + 'px'; drawCanvas.style.height = H + 'px';
+    dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resizeDrawCanvas();
+
+  function xOf(time) { return chartPrice.timeScale().timeToCoordinate(time); }
+  function yOf(price) { return candleSeries.priceToCoordinate(price); }
+  function xy(pt) { const x = xOf(pt.time), y = yOf(pt.price); return (x === null || y === null) ? null : { x, y }; }
+  function lineRaw(x1, y1, x2, y2) { dctx.beginPath(); dctx.moveTo(x1, y1); dctx.lineTo(x2, y2); dctx.stroke(); }
+  function extendRay(p1, p2) {
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    if (Math.abs(dx) < 0.01) return { x: p2.x, y: dy >= 0 ? H : 0 };
+    const targetX = dx >= 0 ? W : 0; const t = (targetX - p1.x) / dx;
+    return { x: targetX, y: p1.y + dy * t };
+  }
+  function drawArrowHead(p1, p2) {
+    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x); const len = 10;
+    dctx.beginPath(); dctx.moveTo(p2.x, p2.y); dctx.lineTo(p2.x - len * Math.cos(angle - 0.4), p2.y - len * Math.sin(angle - 0.4));
+    dctx.moveTo(p2.x, p2.y); dctx.lineTo(p2.x - len * Math.cos(angle + 0.4), p2.y - len * Math.sin(angle + 0.4)); dctx.stroke();
+  }
+  function priceLabel(y, price, color) {
+    const text = fmt(price); dctx.font = '600 11px "JetBrains Mono", monospace';
+    const tw = dctx.measureText(text).width; const boxW = tw + 12, boxH = 18; const x = W - boxW - 2;
+    dctx.fillStyle = color; dctx.fillRect(x, y - boxH / 2, boxW, boxH);
+    dctx.fillStyle = textColorFor(color); dctx.textBaseline = 'middle'; dctx.textAlign = 'left';
+    dctx.fillText(text, x + 6, y + 0.5);
+  }
+  function drawFib(d) {
+    const t1 = d.points[0].time, t2 = d.points[1].time, pr1 = d.points[0].price, pr2 = d.points[1].price;
+    const x1 = xOf(Math.min(t1, t2)), x2 = xOf(Math.max(t1, t2));
+    if (x1 == null || x2 == null) return;
+    FIB_LEVELS.forEach((lv, i) => {
+      const price = pr1 + (pr2 - pr1) * lv; const y = yOf(price); if (y == null) return;
+      dctx.strokeStyle = d.color; dctx.globalAlpha = 0.85; dctx.setLineDash(lv === 0 || lv === 1 ? [] : [5, 4]);
+      lineRaw(x1, y, x2, y); dctx.setLineDash([]); dctx.globalAlpha = 1;
+      dctx.font = '600 10px "JetBrains Mono", monospace'; dctx.fillStyle = d.color; dctx.textBaseline = 'bottom'; dctx.textAlign = 'left';
+      dctx.fillText((lv * 100).toFixed(1) + '%  ' + fmt(price), x1 + 4, y - 2);
+      if (i < FIB_LEVELS.length - 1) {
+        const y2 = yOf(pr1 + (pr2 - pr1) * FIB_LEVELS[i + 1]);
+        if (y2 != null) { dctx.fillStyle = d.color + (i % 2 === 0 ? '14' : '0a'); dctx.fillRect(x1, Math.min(y, y2), x2 - x1, Math.abs(y2 - y)); }
+      }
+    });
+  }
+  function drawMeasure(d) {
+    const p1 = xy(d.points[0]), p2 = xy(d.points[1]); if (!p1 || !p2) return;
+    const priceDiff = d.points[1].price - d.points[0].price; const pct = (priceDiff / d.points[0].price) * 100;
+    const up = priceDiff >= 0; const col = up ? (currentUpColor || '#14cc8a') : (currentDownColor || '#ff4757');
+    const x = Math.min(p1.x, p2.x), y = Math.min(p1.y, p2.y), rw = Math.abs(p2.x - p1.x), rh = Math.abs(p2.y - p1.y);
+    dctx.fillStyle = col + '26'; dctx.fillRect(x, y, rw, rh);
+    dctx.strokeStyle = col; dctx.setLineDash([4, 3]); dctx.strokeRect(x, y, rw, rh); dctx.setLineDash([]);
+    const bars = countBarsBetween(d.points[0].time, d.points[1].time);
+    const label = (up ? '+' : '') + fmt(priceDiff) + ' (' + (up ? '+' : '') + pct.toFixed(2) + '%) • ' + bars + ' nến';
+    dctx.font = '700 11px "JetBrains Mono", monospace'; const tw = dctx.measureText(label).width;
+    const lx = p2.x + 8, ly = p2.y < p1.y ? p2.y : p2.y;
+    dctx.fillStyle = col; dctx.fillRect(lx - 4, ly - 20, tw + 8, 20);
+    dctx.fillStyle = textColorFor(col); dctx.textBaseline = 'middle'; dctx.textAlign = 'left'; dctx.fillText(label, lx, ly - 10);
+  }
+  function drawOne(d, selected) {
+    dctx.save();
+    dctx.strokeStyle = d.color; dctx.fillStyle = d.color; dctx.lineWidth = selected ? 3 : 2; dctx.lineCap = 'round';
+    switch (d.type) {
+      case 'trendline': case 'ray': case 'arrow': case 'channel': {
+        const p1 = xy(d.points[0]), p2raw = d.points[1] ? xy(d.points[1]) : null;
+        if (!p1 || !p2raw) break;
+        let p2 = p2raw;
+        if (d.type === 'ray') p2 = extendRay(p1, p2raw);
+        lineRaw(p1.x, p1.y, p2.x, p2.y);
+        if (d.type === 'arrow') drawArrowHead(p1, p2raw);
+        if (d.type === 'channel' && d.points[2]) {
+          const p3 = xy(d.points[2]);
+          if (p3) {
+            const dy = p3.y - p1.y;
+            lineRaw(p1.x, p1.y + dy, p2raw.x, p2raw.y + dy);
+            dctx.fillStyle = d.color + '1c';
+            dctx.beginPath(); dctx.moveTo(p1.x, p1.y); dctx.lineTo(p2raw.x, p2raw.y); dctx.lineTo(p2raw.x, p2raw.y + dy); dctx.lineTo(p1.x, p1.y + dy); dctx.closePath(); dctx.fill();
+          }
+        }
+        break;
+      }
+      case 'hline': { const y = yOf(d.points[0].price); if (y == null) break; dctx.setLineDash([7, 5]); lineRaw(0, y, W, y); dctx.setLineDash([]); priceLabel(y, d.points[0].price, d.color); break; }
+      case 'hray': { const p = xy(d.points[0]); if (!p) break; lineRaw(p.x, p.y, W, p.y); priceLabel(p.y, d.points[0].price, d.color); break; }
+      case 'vline': { const x = xOf(d.points[0].time); if (x == null) break; lineRaw(x, 0, x, H); break; }
+      case 'rect': { const p1 = xy(d.points[0]), p2 = xy(d.points[1]); if (!p1 || !p2) break; const x = Math.min(p1.x, p2.x), y = Math.min(p1.y, p2.y), rw = Math.abs(p2.x - p1.x), rh = Math.abs(p2.y - p1.y); dctx.fillStyle = d.color + '22'; dctx.fillRect(x, y, rw, rh); dctx.strokeStyle = d.color; dctx.strokeRect(x, y, rw, rh); break; }
+      case 'circle': { const p1 = xy(d.points[0]), p2 = xy(d.points[1]); if (!p1 || !p2) break; const cx = (p1.x + p2.x) / 2, cy = (p1.y + p2.y) / 2, rx = Math.abs(p2.x - p1.x) / 2, ry = Math.abs(p2.y - p1.y) / 2; dctx.beginPath(); dctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); dctx.fillStyle = d.color + '22'; dctx.fill(); dctx.strokeStyle = d.color; dctx.stroke(); break; }
+      case 'fib': drawFib(d); break;
+      case 'measure': drawMeasure(d); break;
+      case 'polyline': { const pts = d.points.map(xy).filter(Boolean); if (pts.length < 2) break; dctx.beginPath(); dctx.moveTo(pts[0].x, pts[0].y); pts.slice(1).forEach(p => dctx.lineTo(p.x, p.y)); dctx.stroke(); break; }
+      case 'text': { const p = xy(d.points[0]); if (!p) break; dctx.font = '600 13px Inter, sans-serif'; dctx.fillStyle = d.color; dctx.textBaseline = 'bottom'; dctx.textAlign = 'left'; dctx.fillText(d.text || '', p.x + 4, p.y - 4); break; }
+    }
+    if (selected) {
+      dctx.fillStyle = d.color;
+      (d.points || []).forEach(pt => { const p = xy(pt); if (!p) return; dctx.beginPath(); dctx.arc(p.x, p.y, 4, 0, Math.PI * 2); dctx.fill(); });
+    }
+    dctx.restore();
+  }
+  function drawPending() {
+    if (currentTool === 'cursor' || currentTool === 'eraser' || !pendingPoints.length) return;
+    const pts = pendingPoints.concat(previewPoint ? [previewPoint] : []);
+    dctx.globalAlpha = 0.75; drawOne({ type: currentTool, points: pts, color: drawColor(), text: '' }, false); dctx.globalAlpha = 1;
+  }
+  function renderDrawings() {
+    if (document.hidden) { requestAnimationFrame(renderDrawings); return; }
+    const host = document.getElementById('chart-price');
+    if (!host) { requestAnimationFrame(renderDrawings); return; }
+    const dpr = window.devicePixelRatio || 1;
+    if (drawCanvas.width !== Math.round(host.clientWidth * dpr) || drawCanvas.height !== Math.round(host.clientHeight * dpr)) resizeDrawCanvas();
+    dctx.clearRect(0, 0, W, H);
+    if (!hiddenOn) drawings.forEach(d => drawOne(d, d.id === selectedId));
+    drawPending();
+    requestAnimationFrame(renderDrawings);
+  }
+  requestAnimationFrame(renderDrawings);
+
+  // ===== Hit-test (chọn / xoá bản vẽ) =====
+  function distToSeg(px, py, x1, y1, x2, y2) {
+    const A = px - x1, B = py - y1, C = x2 - x1, D = y2 - y1; const len = C * C + D * D;
+    let t = len ? (A * C + B * D) / len : -1; t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * C), py - (y1 + t * D));
+  }
+  function hitTestOne(d, x, y, tol) {
+    switch (d.type) {
+      case 'trendline': case 'ray': case 'arrow': case 'channel': {
+        const p1 = xy(d.points[0]), p2raw = d.points[1] ? xy(d.points[1]) : null; if (!p1 || !p2raw) return false;
+        const p2 = d.type === 'ray' ? extendRay(p1, p2raw) : p2raw;
+        if (distToSeg(x, y, p1.x, p1.y, p2.x, p2.y) <= tol) return true;
+        if (d.type === 'channel' && d.points[2]) { const p3 = xy(d.points[2]); if (p3) { const dy = p3.y - p1.y; if (distToSeg(x, y, p1.x, p1.y + dy, p2raw.x, p2raw.y + dy) <= tol) return true; } }
+        return false;
+      }
+      case 'hline': { const py = yOf(d.points[0].price); return py != null && Math.abs(y - py) <= tol; }
+      case 'hray': { const p = xy(d.points[0]); return !!p && Math.abs(y - p.y) <= tol && x >= p.x - 2; }
+      case 'vline': { const px = xOf(d.points[0].time); return px != null && Math.abs(x - px) <= tol; }
+      case 'rect': case 'circle': case 'measure': {
+        const p1 = xy(d.points[0]), p2 = xy(d.points[1]); if (!p1 || !p2) return false;
+        const bx = Math.min(p1.x, p2.x) - tol, by = Math.min(p1.y, p2.y) - tol, bw = Math.abs(p2.x - p1.x) + 2 * tol, bh = Math.abs(p2.y - p1.y) + 2 * tol;
+        return x >= bx && x <= bx + bw && y >= by && y <= by + bh;
+      }
+      case 'fib': {
+        const p1 = xy(d.points[0]), p2 = xy(d.points[1]); if (!p1 || !p2) return false;
+        const minX = Math.min(p1.x, p2.x) - tol, maxX = Math.max(p1.x, p2.x) + tol; if (x < minX || x > maxX) return false;
+        const pr1 = d.points[0].price, pr2 = d.points[1].price;
+        return FIB_LEVELS.some(lv => { const py = yOf(pr1 + (pr2 - pr1) * lv); return py != null && Math.abs(y - py) <= tol; });
+      }
+      case 'polyline': { const pts = d.points.map(xy).filter(Boolean); for (let i = 0; i < pts.length - 1; i++) if (distToSeg(x, y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= tol) return true; return false; }
+      case 'text': { const p = xy(d.points[0]); return !!p && x >= p.x - 4 && x <= p.x + 130 && y >= p.y - 22 && y <= p.y + 4; }
+    }
+    return false;
+  }
+  function hitTest(x, y) { const tol = 8; for (let i = drawings.length - 1; i >= 0; i--) if (hitTestOne(drawings[i], x, y, tol)) return drawings[i]; return null; }
+  function addDrawing(obj) { obj.id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); drawings.push(obj); saveDrawings(); }
+  function removeDrawing(id) { drawings = drawings.filter(d => d.id !== id); saveDrawings(); }
+
+  // ===== Chọn công cụ trên thanh toolbar =====
+  function updateDrawHint() { const el = document.getElementById('draw-hint'); if (!el) return; const t = HINT_TEXT[currentTool]; if (t) { el.textContent = t; el.style.display = 'block'; } else el.style.display = 'none'; }
   const toolBtns = document.querySelectorAll('.tool-btn[data-tool]');
   toolBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      toolBtns.forEach(b => b.classList.remove('active')); btn.classList.add('active'); currentTool = btn.getAttribute('data-tool'); drawingTrendState = 0; 
+      toolBtns.forEach(b => b.classList.remove('active')); btn.classList.add('active');
+      currentTool = btn.getAttribute('data-tool'); pendingPoints = []; previewPoint = null; selectedId = null;
       chartPrice.applyOptions({ crosshair: { mode: currentTool === 'cursor' ? LightweightCharts.CrosshairMode.Normal : LightweightCharts.CrosshairMode.Magnet } });
-      document.getElementById('chart-price').style.cursor = 'crosshair'; 
+      document.getElementById('chart-price').style.cursor = currentTool === 'cursor' ? 'default' : 'crosshair';
+      updateDrawHint();
+    });
+  });
+  function resetToolAfterUse() { document.querySelector('.tool-btn[data-tool="cursor"]').click(); }
+
+  // ===== Công tắc Nam châm / Khoá / Ẩn =====
+  const toggleState = { magnet: () => magnetOn, lock: () => lockOn, hide: () => hiddenOn };
+  document.querySelectorAll('.tool-toggle').forEach(btn => {
+    const key = btn.getAttribute('data-toggle');
+    btn.classList.toggle('toggle-on', toggleState[key]());
+    btn.addEventListener('click', () => {
+      if (key === 'magnet') { magnetOn = !magnetOn; localStorage.setItem('ok_draw_magnet', magnetOn); showDrawToast(magnetOn ? 'Đã bật Nam châm — điểm vẽ sẽ hút vào nến gần nhất' : 'Đã tắt Nam châm'); }
+      if (key === 'lock') { lockOn = !lockOn; localStorage.setItem('ok_draw_lock', lockOn); showDrawToast(lockOn ? 'Đã khoá toàn bộ bản vẽ' : 'Đã mở khoá bản vẽ'); }
+      if (key === 'hide') { hiddenOn = !hiddenOn; showDrawToast(hiddenOn ? 'Đã ẩn toàn bộ bản vẽ' : 'Đã hiện lại bản vẽ'); }
+      btn.classList.toggle('toggle-on', toggleState[key]());
     });
   });
 
+  // ===== Xử lý click / di chuột trên biểu đồ giá =====
+  chartPrice.subscribeCrosshairMove(param => {
+    if (!param || !param.point || param.time === undefined) { previewPoint = null; return; }
+    const price = candleSeries.coordinateToPrice(param.point.y);
+    previewPoint = (price == null) ? null : snapPoint(param.time, price);
+  });
   chartPrice.subscribeClick(param => {
-    if (currentTool === 'cursor' || !param.point || param.time === undefined) return;
-    const price = candleSeries.coordinateToPrice(param.point.y); if (!price) return;
-    if (currentTool === 'hline') {
-      const line = candleSeries.createPriceLine({ price: price, color: '#3d8bff', lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: 'Cản tay' });
-      priceLines.push(line); document.querySelector('.tool-btn[data-tool="cursor"]').click();
+    if (!param || !param.point || param.time === undefined) return;
+    const rawPrice = candleSeries.coordinateToPrice(param.point.y); if (rawPrice == null) return;
+    const pt = snapPoint(param.time, rawPrice);
+
+    if (currentTool === 'cursor') { const hit = hitTest(param.point.x, param.point.y); selectedId = hit ? hit.id : null; return; }
+    if (currentTool === 'eraser') {
+      const hit = hitTest(param.point.x, param.point.y);
+      if (hit) { if (lockOn) { showDrawToast('Bản vẽ đang bị khoá — mở khoá để xoá'); return; } removeDrawing(hit.id); }
+      return;
     }
-    if (currentTool === 'trendline') {
-      if (drawingTrendState === 0) { trendPoint1 = { time: param.time, value: price }; drawingTrendState = 1;
-      } else if (drawingTrendState === 1) {
-        const trendPoint2 = { time: param.time, value: price };
-        if (trendPoint1.time !== trendPoint2.time) {
-          const data = trendPoint1.time < trendPoint2.time ? [trendPoint1, trendPoint2] : [trendPoint2, trendPoint1];
-          const tlSeries = chartPrice.addLineSeries({ color: 'var(--gold)', lineWidth: 2, crosshairMarkerVisible: false, lastValueVisible: false, priceLineVisible: false });
-          tlSeries.setData(data); trendLines.push(tlSeries);
-        }
-        drawingTrendState = 0; document.querySelector('.tool-btn[data-tool="cursor"]').click();
-      }
+    if (currentTool === 'text') {
+      const txt = window.prompt('Nội dung ghi chú:', '');
+      if (txt && txt.trim()) addDrawing({ type: 'text', points: [pt], text: txt.trim().slice(0, 140), color: drawColor() });
+      resetToolAfterUse(); return;
+    }
+    if (currentTool === 'polyline') { pendingPoints.push(pt); return; }
+
+    pendingPoints.push(pt);
+    const need = TOOL_POINTS[currentTool] || 2;
+    if (pendingPoints.length >= need) {
+      addDrawing({ type: currentTool, points: pendingPoints.slice(), color: drawColor() });
+      pendingPoints = []; resetToolAfterUse();
     }
   });
 
-  document.getElementById('clear-drawings').addEventListener('click', () => { priceLines.forEach(line => candleSeries.removePriceLine(line)); priceLines = []; trendLines.forEach(series => chartPrice.removeSeries(series)); trendLines = []; });
+  document.addEventListener('keydown', e => {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.key === 'Escape') { pendingPoints = []; previewPoint = null; selectedId = null; document.querySelector('.tool-btn[data-tool="cursor"]').click(); }
+    if (e.key === 'Enter' && currentTool === 'polyline' && pendingPoints.length >= 2) { addDrawing({ type: 'polyline', points: pendingPoints.slice(), color: drawColor() }); pendingPoints = []; resetToolAfterUse(); }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+      if (lockOn) { showDrawToast('Bản vẽ đang bị khoá — mở khoá để xoá'); return; }
+      removeDrawing(selectedId); selectedId = null;
+    }
+  });
+
+  document.getElementById('clear-drawings').addEventListener('click', () => {
+    if (lockOn) { showDrawToast('Đang khoá — mở khoá để xoá tất cả bản vẽ'); return; }
+    if (!drawings.length) return;
+    if (!confirm('Xoá toàn bộ bản vẽ trên biểu đồ này?')) return;
+    drawings = []; selectedId = null; saveDrawings();
+  });
+
+  // Cho phép updateChart() nạp lại đúng bộ bản vẽ khi đổi mã coin
+  window.__drawSystemOnSymbolChange = function () { loadDrawings(); selectedId = null; pendingPoints = []; previewPoint = null; };
 
   const tooltip = document.createElement('div');
   tooltip.style = `position: absolute; display: none; padding: 10px; box-sizing: border-box; font-size: 13px; color: #fff; background-color: rgba(23, 28, 39, 0.95); border: 1px solid #2d3342; border-radius: 8px; pointer-events: none; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-family: sans-serif;`;
@@ -1445,7 +1760,7 @@
     if (currentTickerWS) { currentTickerWS.onclose = null; currentTickerWS.close(); } 
     if (whaleWS) { whaleWS.onclose = null; whaleWS.close(); }
     if (reconnectTimeout) clearTimeout(reconnectTimeout); if (syncInterval) clearInterval(syncInterval);
-    priceLines.forEach(line => candleSeries.removePriceLine(line)); priceLines = []; trendLines.forEach(series => chartPrice.removeSeries(series)); trendLines = [];
+    if (typeof window.__drawSystemOnSymbolChange === 'function') window.__drawSystemOnSymbolChange();
 
     fetchSyncData(); syncInterval = setInterval(fetchSyncData, 45 * 1000); fetchBinanceSentiment(currentSymbol);
 
