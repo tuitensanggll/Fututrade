@@ -558,6 +558,16 @@
     if (ind.type === 'ema') return `EMA ${ind.period}`;
     return ind.type;
   }
+  // Mô tả từng ĐƯỜNG con của 1 chỉ báo (nhãn + màu riêng) để hiện đủ giá trị ở góc trái pane,
+  // giống đúng cách Binance/TradingView hiện "RSI 14: 52.30  MA 14: 48.75" hay "%K: 63.5  %D: 58.2"
+  // — trước đây chỉ hiện được 1 giá trị (đường chính), thiếu hẳn đường tín hiệu/phụ.
+  function subSeriesMeta(ind) {
+    if (ind.type === 'rsi') return [ { label: `RSI ${ind.period}`, color: ind.color }, { label: `MA ${ind.smaPeriod}`, color: ind.color2 } ];
+    if (ind.type === 'stoch') return [ { label: `%K ${ind.kPeriod}`, color: ind.color }, { label: `%D ${ind.dPeriod}`, color: ind.color2 } ];
+    if (ind.type === 'macd') return [ { label: 'MACD', color: ind.color }, { label: 'Signal', color: ind.color2 }, { label: 'Hist', color: '#7c8598' } ];
+    if (ind.type === 'bb') return [ { label: 'Basis', color: ind.color }, { label: 'Upper', color: ind.color }, { label: 'Lower', color: ind.color } ];
+    return [ { label: labelFor(ind), color: ind.color } ];
+  }
 
   function defaultIndicators() {
     return [
@@ -682,20 +692,42 @@
     widthSyncPending = true;
     requestAnimationFrame(() => {
       widthSyncPending = false;
-      const regs = Object.values(paneRegistry).filter(r => r && r.chart);
-      if (!regs.length) return;
-      let maxWidth = 90;
-      regs.forEach(reg => {
-        try {
-          const w = reg.chart.priceScale('right').width();
-          if (w && w > maxWidth) maxWidth = w;
-        } catch (e) {}
-      });
-      regs.forEach(reg => {
-        try { reg.chart.priceScale('right').applyOptions({ minimumWidth: maxWidth }); } catch (e) {}
-      });
+      applyPriceScaleWidthSync();
     });
   }
+  function applyPriceScaleWidthSync() {
+    const regs = Object.values(paneRegistry).filter(r => r && r.chart);
+    if (!regs.length) return;
+    let maxWidth = 90;
+    regs.forEach(reg => {
+      try {
+        const w = reg.chart.priceScale('right').width();
+        if (w && w > maxWidth) maxWidth = w;
+      } catch (e) {}
+    });
+    regs.forEach(reg => {
+      try { reg.chart.priceScale('right').applyOptions({ minimumWidth: maxWidth }); } catch (e) {}
+    });
+    return maxWidth;
+  }
+  // Vòng lặp tự-chữa-lành: đo & ép lại độ rộng trục mỗi khung hình nếu có thay đổi.
+  // Đây là lưới an toàn cuối cùng — dù bất kỳ thao tác nào (thêm/xoá chỉ báo, đổi màu, kéo resize,
+  // đổi coin, tick giá mới...) làm lệch trục mà quên gọi syncPriceScaleWidths(), vòng lặp này vẫn
+  // tự phát hiện và ép các pane thẳng hàng lại ngay trong khung hình kế tiếp — không bao giờ bị "thụt".
+  let lastSyncedAxisWidth = 0;
+  function widthSyncWatchLoop() {
+    const regs = Object.values(paneRegistry).filter(r => r && r.chart);
+    if (regs.length) {
+      let maxWidth = 90;
+      regs.forEach(reg => { try { const w = reg.chart.priceScale('right').width(); if (w && w > maxWidth) maxWidth = w; } catch (e) {} });
+      if (maxWidth !== lastSyncedAxisWidth) {
+        lastSyncedAxisWidth = maxWidth;
+        regs.forEach(reg => { try { reg.chart.priceScale('right').applyOptions({ minimumWidth: maxWidth }); } catch (e) {} });
+      }
+    }
+    requestAnimationFrame(widthSyncWatchLoop);
+  }
+  requestAnimationFrame(widthSyncWatchLoop);
   function updatePaneAxisVisibility() {
     const panes = Array.from(document.getElementById('chart-wrapper').querySelectorAll('.sub-pane'));
     panes.forEach((p, idx) => { const reg = paneRegistry[p.dataset.pane]; if (reg) reg.chart.applyOptions({ timeScale: { visible: idx === panes.length - 1 } }); });
@@ -745,8 +777,18 @@
     return { k: kSmoothed, d };
   }
   function toLineData(times, values, fromIndex) {
+    // QUAN TRỌNG: không được bỏ hẳn các điểm chưa đủ dữ liệu (giai đoạn "khởi động" của chỉ báo, VD RSI
+    // cần 14 nến đầu). Nếu bỏ, mảng dữ liệu của chỉ báo sẽ NGẮN HƠN mảng Nến/Volume, khiến chỉ số (index)
+    // của pane chỉ báo bị lệch so với pane Nến/Volume — cơ chế đồng bộ trục thời gian giữa các pane dùng
+    // logical range (theo index) nên sẽ đồng bộ SAI, làm đường chỉ báo (RSI/MACD/...) luôn hụt một đoạn so
+    // với Nến/Volume. Thay vào đó, dùng "whitespace point" ({time} không kèm value) để giữ đúng vị trí trục
+    // thời gian mà không vẽ giá trị — nhờ vậy mọi pane luôn có CÙNG số điểm, cùng index, thẳng hàng tuyệt đối.
     const out = [];
-    for (let i = Math.max(0, fromIndex); i < times.length; i++) { if (values[i] === null || values[i] === undefined) continue; out.push({ time: times[i], value: values[i] }); }
+    for (let i = 0; i < times.length; i++) {
+      const v = values[i];
+      if (i < fromIndex || v === null || v === undefined) out.push({ time: times[i] });
+      else out.push({ time: times[i], value: v });
+    }
     return out;
   }
 
@@ -755,6 +797,45 @@
   // độc lập mà KHÔNG chiếm thêm bề ngang — vì trục trái hiển thị sẽ làm pane đó rộng hơn pane khác,
   // khiến nến/cột/đường bị lệch cột với các pane còn lại (đây chính là nguyên nhân "3 biểu đồ lệch nhau"). =====
   const seriesStore = {}; // id -> { series:[...], scaleId, guides:[...] }
+
+  // Số lẻ hiển thị phải co giãn theo biên độ giá — giống Binance/TradingView: BTC/ETH chỉ cần 2 số lẻ,
+  // nhưng altcoin giá nhỏ (kiểu SHIB, PEPE...) mà cũng chỉ hiện 2 số lẻ thì toàn ra "0.00" vô nghĩa.
+  function computePriceDecimals(price) {
+    const p = Math.abs(price);
+    if (!isFinite(p) || p === 0) return 2;
+    if (p >= 100) return 2;
+    if (p >= 1) return 3;
+    if (p >= 0.1) return 4;
+    if (p >= 0.01) return 5;
+    if (p >= 0.001) return 6;
+    if (p >= 0.0001) return 7;
+    return 8;
+  }
+  function fmt(n){ if (n === null || n === undefined || !isFinite(n)) return '--'; const d = computePriceDecimals(n); return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+  function fmtVol(n){ if(n>=1e9) return (n/1e9).toFixed(2)+'B'; if(n>=1e6) return (n/1e6).toFixed(2)+'M'; if(n>=1e3) return (n/1e3).toFixed(2)+'K'; return n.toFixed(2); }
+  function fmtTime(t){ return new Date(t*1000).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+
+  // ===== Đồng bộ số lẻ trên TRỤC (không chỉ chữ số trong tooltip/legend) cho khung giá + chỉ báo vẽ đè lên giá =====
+  // RSI/Stochastic giữ nguyên thang 0-100 mặc định (đã chuẩn), chỉ giá (candles), SMA/EMA/BB và MACD mới cần co giãn
+  // theo biên độ giá vì chúng dao động cùng đơn vị với giá gốc.
+  let lastAppliedPriceDecimals = null;
+  function currentPriceDecimals() {
+    const last = candlesData.length ? candlesData[candlesData.length - 1].close : null;
+    return computePriceDecimals(last || 1);
+  }
+  function applyDynamicPricePrecision(force) {
+    const d = currentPriceDecimals();
+    if (!force && d === lastAppliedPriceDecimals) return;
+    lastAppliedPriceDecimals = d;
+    const fmtOpt = { type: 'price', precision: d, minMove: 1 / Math.pow(10, d) };
+    try { candleSeries.applyOptions({ priceFormat: fmtOpt }); } catch (e) {}
+    indicators.forEach(ind => {
+      const cat = INDICATOR_CATALOG[ind.type] && INDICATOR_CATALOG[ind.type].category;
+      if (!((ind.pane === 'price' && cat === 'overlay') || ind.type === 'macd')) return;
+      const store = seriesStore[ind.id]; if (!store) return;
+      store.series.forEach(s => { try { s.applyOptions({ priceFormat: fmtOpt }); } catch (e) {} });
+    });
+  }
   function decideScale(ind) {
     const def = INDICATOR_CATALOG[ind.type];
     if (ind.pane === 'price') return def.category === 'overlay' ? 'right' : ('hidden-' + ind.id);
@@ -795,7 +876,8 @@
       guides.push(k.createPriceLine({ price: 80, color: '#ff475766', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '80' }));
       guides.push(k.createPriceLine({ price: 20, color: '#14cc8a66', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '20' }));
     }
-    seriesStore[ind.id] = { series, scaleId, guides, dataMap: new Map() };
+    seriesStore[ind.id] = { series, scaleId, guides, dataMap: new Map(), dataMaps: [] };
+    applyDynamicPricePrecision(true);
     if (isHiddenScaleId(scaleId)) {
       try { chart.priceScale(scaleId).applyOptions({ visible: false, borderVisible: false, minimumWidth: 0 }); } catch (e) {}
     }
@@ -836,17 +918,17 @@
         const arr = computeSMA(closes, ind.period);
         const data = toLineData(times, arr, ind.period - 1);
         store.series[0].setData(data);
-        store.dataMap = buildValueMap(data);
+        store.dataMaps = [buildValueMap(data)]; store.dataMap = store.dataMaps[0];
       } else if (ind.type === 'ema') {
         const arr = computeEMA(closes, ind.period);
         const data = toLineData(times, arr, ind.period - 1);
         store.series[0].setData(data);
-        store.dataMap = buildValueMap(data);
+        store.dataMaps = [buildValueMap(data)]; store.dataMap = store.dataMaps[0];
       } else if (ind.type === 'volma') {
         const arr = computeSMA(vols, ind.period);
         const data = toLineData(times, arr, ind.period - 1);
         store.series[0].setData(data);
-        store.dataMap = buildValueMap(data);
+        store.dataMaps = [buildValueMap(data)]; store.dataMap = store.dataMaps[0];
       } else if (ind.type === 'bb') {
         const bb = computeBollinger(closes, ind.period, ind.mult);
         const basis = toLineData(times, bb.basis, ind.period - 1);
@@ -855,14 +937,14 @@
         store.series[0].setData(basis);
         store.series[1].setData(upper);
         store.series[2].setData(lower);
-        store.dataMap = buildValueMap(basis);
+        store.dataMaps = [buildValueMap(basis), buildValueMap(upper), buildValueMap(lower)]; store.dataMap = store.dataMaps[0];
       } else if (ind.type === 'rsi') {
         const rsiArr = computeRSI(closes, ind.period); const smaArr = computeSMA(rsiArr, ind.smaPeriod);
         const main = toLineData(times, rsiArr, ind.period);
         const sig = toLineData(times, smaArr, ind.period + ind.smaPeriod - 1);
         store.series[0].setData(main);
         store.series[1].setData(sig);
-        store.dataMap = buildValueMap(main);
+        store.dataMaps = [buildValueMap(main), buildValueMap(sig)]; store.dataMap = store.dataMaps[0];
       } else if (ind.type === 'macd') {
         const { macd, sig, hist } = computeMACD(closes, ind.fast, ind.slow, ind.signal);
         const from = ind.slow - 1; const fromSig = from + ind.signal - 1;
@@ -871,16 +953,19 @@
         store.series[0].setData(main);
         store.series[1].setData(signal);
         const histData = [];
-        for (let i = fromSig; i < times.length; i++) { if (hist[i] == null) continue; histData.push({ time: times[i], value: hist[i], color: hist[i] >= 0 ? (currentUpColor + '99') : (currentDownColor + '99') }); }
+        for (let i = 0; i < times.length; i++) {
+          if (i < fromSig || hist[i] == null) histData.push({ time: times[i] });
+          else histData.push({ time: times[i], value: hist[i], color: hist[i] >= 0 ? (currentUpColor + '99') : (currentDownColor + '99') });
+        }
         store.series[2].setData(histData);
-        store.dataMap = buildValueMap(main);
+        store.dataMaps = [buildValueMap(main), buildValueMap(signal), buildValueMap(histData)]; store.dataMap = store.dataMaps[0];
       } else if (ind.type === 'stoch') {
         const { k, d } = computeStochastic(highs, lows, closes, ind.kPeriod, ind.dPeriod, ind.smooth);
         const main = toLineData(times, k, ind.kPeriod + ind.smooth - 2);
         const sig = toLineData(times, d, ind.kPeriod + ind.smooth - 2 + ind.dPeriod - 1);
         store.series[0].setData(main);
         store.series[1].setData(sig);
-        store.dataMap = buildValueMap(main);
+        store.dataMaps = [buildValueMap(main), buildValueMap(sig)]; store.dataMap = store.dataMaps[0];
       }
     });
     updateAllLegendValues();
@@ -1036,23 +1121,28 @@
       const item = document.createElement('div');
       item.className = 'ind-item' + (ind.visible ? '' : ' ind-hidden');
       item.draggable = true; item.dataset.key = ind.id;
-      item.innerHTML = `<span class="ind-drag">⋮⋮</span><span class="ind-dot" style="background:${ind.color}"></span><span class="ind-label">${labelFor(ind)}</span><span class="ind-value" data-key="${ind.id}" style="color:${ind.color}"></span><button class="ind-eye" data-key="${ind.id}" type="button" title="Ẩn/hiện">${ind.visible ? '👁' : '🚫'}</button><button class="ind-gear" data-key="${ind.id}" type="button" title="Cài đặt">⚙</button><button class="ind-trash" data-key="${ind.id}" type="button" title="Xóa">🗑</button>`;
+      const groupsHtml = subSeriesMeta(ind).map((m, idx) => `<span class="ind-group"><span class="ind-dot" style="background:${m.color}"></span><span class="ind-label">${m.label}</span><span class="ind-value" data-key="${ind.id}_${idx}" style="color:${m.color}"></span></span>`).join('');
+      item.innerHTML = `<span class="ind-drag">⋮⋮</span>${groupsHtml}<button class="ind-eye" data-key="${ind.id}" type="button" title="Ẩn/hiện">${ind.visible ? '👁' : '🚫'}</button><button class="ind-gear" data-key="${ind.id}" type="button" title="Cài đặt">⚙</button><button class="ind-trash" data-key="${ind.id}" type="button" title="Xóa">🗑</button>`;
       container.appendChild(item);
     });
   }
   function renderAllLegends() { Object.keys(paneRegistry).forEach(renderLegend); updateAllLegendValues(); }
 
-  // ===== Hiển thị giá trị hiện tại (hoặc giá trị tại điểm đang rê chuột) của từng chỉ báo trong legend =====
+  // ===== Hiển thị giá trị hiện tại (hoặc giá trị tại điểm đang rê chuột) của TỪNG ĐƯỜNG trong chỉ báo =====
   // Thay thế cho nhãn giá trị trên trục phải (đã tắt ở mkLine) để tránh chồng chéo con số như trên các sàn lớn.
   function getLatestTime() { return candlesData.length ? candlesData[candlesData.length - 1].time : null; }
   function updateLegendValues(paneId, time) {
     const container = document.getElementById(paneLegendElId(paneId)); if (!container) return;
     const t = (time === undefined || time === null) ? getLatestTime() : time;
     indicators.filter(i => i.pane === paneId).forEach(ind => {
-      const store = seriesStore[ind.id]; const el = container.querySelector(`.ind-value[data-key="${ind.id}"]`);
-      if (!store || !el) return;
-      const val = (t !== null && t !== undefined) ? store.dataMap.get(t) : null;
-      el.textContent = (val === null || val === undefined) ? '' : fmt(val);
+      const store = seriesStore[ind.id]; if (!store) return;
+      const maps = store.dataMaps || [store.dataMap];
+      maps.forEach((map, idx) => {
+        const el = container.querySelector(`.ind-value[data-key="${ind.id}_${idx}"]`);
+        if (!el) return;
+        const val = (t !== null && t !== undefined && map) ? map.get(t) : null;
+        el.textContent = (val === null || val === undefined) ? '' : fmt(val);
+      });
     });
   }
   function updateAllLegendValues(time) { Object.keys(paneRegistry).forEach(paneId => updateLegendValues(paneId, time)); }
@@ -1160,9 +1250,6 @@
   renderAllLegends();
 
   const priceElement = document.getElementById('current-price'); const changeBadge = document.getElementById('change-badge'); const titleElement = document.getElementById('chart-title');
-  function fmt(n){ return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  function fmtVol(n){ if(n>=1e9) return (n/1e9).toFixed(2)+'B'; if(n>=1e6) return (n/1e6).toFixed(2)+'M'; if(n>=1e3) return (n/1e3).toFixed(2)+'K'; return n.toFixed(2); }
-  function fmtTime(t){ return new Date(t*1000).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
 
   // =========================================================
   // HỆ THỐNG VẼ CHUYÊN NGHIỆP TRÊN BIỂU ĐỒ GIÁ
@@ -1203,8 +1290,19 @@
   function drawColor() { return document.getElementById('draw-color')?.value || '#3d8bff'; }
   function drawStorageKey() { return 'ok_drawings_' + currentSymbol; }
   function saveDrawings() { try { localStorage.setItem(drawStorageKey(), JSON.stringify(drawings)); } catch (e) {} }
-  function loadDrawings() { try { drawings = JSON.parse(localStorage.getItem(drawStorageKey()) || '[]'); } catch (e) { drawings = []; } }
+  function loadDrawings() { try { drawings = JSON.parse(localStorage.getItem(drawStorageKey()) || '[]'); drawings.forEach(normalizeDrawing); } catch (e) { drawings = []; } }
   loadDrawings();
+
+  // ===== Thuộc tính từng bản vẽ: màu / độ dày nét / ẩn riêng / khoá riêng =====
+  const WIDTH_STEPS = [1, 2, 3, 4, 5];
+  function isDrawLocked(d) { return !!(lockOn || (d && d.locked)); }
+  function normalizeDrawing(d) {
+    if (!d) return d;
+    if (typeof d.width !== 'number') d.width = 2;
+    if (typeof d.hidden !== 'boolean') d.hidden = false;
+    if (typeof d.locked !== 'boolean') d.locked = false;
+    return d;
+  }
 
   function showDrawToast(msg) {
     const el = document.createElement('div'); el.className = 'draw-toast'; el.textContent = msg;
@@ -1256,6 +1354,91 @@
     dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   resizeDrawCanvas();
+
+  // ===== Thanh công cụ nổi cho bản vẽ đang được chọn (đổi màu / độ dày / ẩn / nhân bản / khoá / xoá) =====
+  const objToolbar = document.createElement('div');
+  objToolbar.className = 'draw-obj-toolbar';
+  objToolbar.innerHTML = `
+    <button type="button" class="dot-swatch" data-act="color" title="Đổi màu"><span class="dot-swatch-inner"></span></button>
+    <input type="color" class="dot-color-input">
+    <button type="button" data-act="width" title="Độ dày nét">2px</button>
+    <button type="button" data-act="eye" title="Ẩn/hiện bản vẽ này">👁</button>
+    <button type="button" data-act="dup" title="Nhân bản">⧉</button>
+    <button type="button" data-act="lock" title="Khoá bản vẽ này">🔓</button>
+    <button type="button" class="danger" data-act="del" title="Xoá bản vẽ này">✕</button>
+  `;
+  document.getElementById('chart-price').appendChild(objToolbar);
+  const objColorInput = objToolbar.querySelector('.dot-color-input');
+  const objSwatchDot = objToolbar.querySelector('.dot-swatch-inner');
+  const objWidthBtn = objToolbar.querySelector('[data-act="width"]');
+  const objEyeBtn = objToolbar.querySelector('[data-act="eye"]');
+  const objLockBtn = objToolbar.querySelector('[data-act="lock"]');
+
+  function getSelectedDrawing() { return selectedId ? drawings.find(x => x.id === selectedId) : null; }
+
+  function anchorFor(d) {
+    if (!d) return null;
+    if (d.type === 'hline') { const y = yOf(d.points[0].price); return y == null ? null : { x: 14, y }; }
+    if (d.type === 'vline') { const x = xOf(d.points[0].time); return x == null ? null : { x, y: 14 }; }
+    // Dùng điểm trên-cùng-bên-trái của bản vẽ làm điểm neo cho thanh công cụ
+    const pts = (d.points || []).map(xy).filter(Boolean);
+    if (!pts.length) return null;
+    let best = pts[0];
+    pts.forEach(p => { if (p.y < best.y || (p.y === best.y && p.x < best.x)) best = p; });
+    return best;
+  }
+
+  function refreshObjToolbarContent(d) {
+    if (!d) return;
+    objSwatchDot.style.background = d.color;
+    objWidthBtn.textContent = (d.width || 2) + 'px';
+    objEyeBtn.textContent = d.hidden ? '🙈' : '👁';
+    objEyeBtn.classList.toggle('toggle-on', !!d.hidden);
+    objLockBtn.textContent = d.locked ? '🔒' : '🔓';
+    objLockBtn.classList.toggle('toggle-on', !!d.locked);
+  }
+
+  function updateObjToolbar() {
+    const d = getSelectedDrawing();
+    const p = d ? anchorFor(d) : null;
+    if (!p) { objToolbar.classList.remove('show'); return; }
+    refreshObjToolbarContent(d);
+    const boxW = 208, boxH = 30;
+    objToolbar.style.left = Math.max(2, Math.min(W - boxW - 2, p.x - boxW / 2)) + 'px';
+    objToolbar.style.top = Math.max(2, p.y - boxH - 12) + 'px';
+    objToolbar.classList.add('show');
+  }
+
+  objToolbar.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-act]'); if (!btn) return;
+    const d = getSelectedDrawing(); if (!d) return;
+    const act = btn.getAttribute('data-act');
+    if (act === 'del') {
+      if (isDrawLocked(d)) { showDrawToast('Bản vẽ đang bị khoá — mở khoá để xoá'); return; }
+      removeDrawing(d.id); selectedId = null; objToolbar.classList.remove('show'); return;
+    }
+    if (act === 'color') { objColorInput.value = d.color || '#3d8bff'; objColorInput.click(); return; }
+    if (act === 'width') {
+      if (isDrawLocked(d)) { showDrawToast('Bản vẽ đang bị khoá'); return; }
+      const cur = WIDTH_STEPS.indexOf(d.width || 2);
+      d.width = WIDTH_STEPS[(cur + 1) % WIDTH_STEPS.length]; saveDrawings(); refreshObjToolbarContent(d); return;
+    }
+    if (act === 'eye') { d.hidden = !d.hidden; saveDrawings(); refreshObjToolbarContent(d); return; }
+    if (act === 'lock') { d.locked = !d.locked; saveDrawings(); refreshObjToolbarContent(d); return; }
+    if (act === 'dup') {
+      const clone = JSON.parse(JSON.stringify(d));
+      delete clone.id; clone.locked = false;
+      // Dịch nhẹ bản sao theo giá để không đè khít lên bản gốc
+      clone.points = (clone.points || []).map(pt => ({ ...pt, price: pt.price ? pt.price * 1.006 : pt.price }));
+      const added = addDrawing(clone);
+      selectedId = added.id; updateObjToolbar(); return;
+    }
+  });
+  objColorInput.addEventListener('input', () => {
+    const d = getSelectedDrawing(); if (!d) return;
+    d.color = objColorInput.value; saveDrawings(); refreshObjToolbarContent(d);
+  });
+  objColorInput.addEventListener('change', () => { saveDrawings(); });
 
   function xOf(time) { return chartPrice.timeScale().timeToCoordinate(time); }
   function yOf(price) { return candleSeries.priceToCoordinate(price); }
@@ -1311,7 +1494,8 @@
   }
   function drawOne(d, selected) {
     dctx.save();
-    dctx.strokeStyle = d.color; dctx.fillStyle = d.color; dctx.lineWidth = selected ? 3 : 2; dctx.lineCap = 'round';
+    const baseW = d.width || 2;
+    dctx.strokeStyle = d.color; dctx.fillStyle = d.color; dctx.lineWidth = selected ? baseW + 1.5 : baseW; dctx.lineCap = 'round';
     switch (d.type) {
       case 'trendline': case 'ray': case 'arrow': case 'channel': {
         const p1 = xy(d.points[0]), p2raw = d.points[1] ? xy(d.points[1]) : null;
@@ -1345,6 +1529,10 @@
       dctx.fillStyle = d.color;
       (d.points || []).forEach(pt => { const p = xy(pt); if (!p) return; dctx.beginPath(); dctx.arc(p.x, p.y, 4, 0, Math.PI * 2); dctx.fill(); });
     }
+    if (d.locked) {
+      const anchorPt = (d.points || [])[0]; const p = anchorPt ? xy(anchorPt) : null;
+      if (p) { dctx.font = '11px sans-serif'; dctx.fillStyle = d.color; dctx.textBaseline = 'bottom'; dctx.textAlign = 'left'; dctx.fillText('🔒', p.x + 6, p.y - 6); }
+    }
     dctx.restore();
   }
   function drawPending() {
@@ -1359,8 +1547,9 @@
     const dpr = window.devicePixelRatio || 1;
     if (drawCanvas.width !== Math.round(host.clientWidth * dpr) || drawCanvas.height !== Math.round(host.clientHeight * dpr)) resizeDrawCanvas();
     dctx.clearRect(0, 0, W, H);
-    if (!hiddenOn) drawings.forEach(d => drawOne(d, d.id === selectedId));
+    if (!hiddenOn) drawings.forEach(d => { if (!d.hidden) drawOne(d, d.id === selectedId); });
     drawPending();
+    updateObjToolbar();
     requestAnimationFrame(renderDrawings);
   }
   requestAnimationFrame(renderDrawings);
@@ -1400,7 +1589,7 @@
     return false;
   }
   function hitTest(x, y) { const tol = 8; for (let i = drawings.length - 1; i >= 0; i--) if (hitTestOne(drawings[i], x, y, tol)) return drawings[i]; return null; }
-  function addDrawing(obj) { obj.id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); drawings.push(obj); saveDrawings(); }
+  function addDrawing(obj) { obj.id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); normalizeDrawing(obj); drawings.push(obj); saveDrawings(); return obj; }
   function removeDrawing(id) { drawings = drawings.filter(d => d.id !== id); saveDrawings(); }
 
   // ===== Chọn công cụ trên thanh toolbar =====
@@ -1435,6 +1624,12 @@
     if (!param || !param.point || param.time === undefined) { previewPoint = null; return; }
     const price = candleSeries.coordinateToPrice(param.point.y);
     previewPoint = (price == null) ? null : snapPoint(param.time, price);
+    if (currentTool === 'cursor' && selectedId && !dragDrawing) {
+      const d = getSelectedDrawing();
+      const host = document.getElementById('chart-price');
+      if (d && !isDrawLocked(d) && hitTestOne(d, param.point.x, param.point.y, 10)) host.style.cursor = 'move';
+      else host.style.cursor = 'default';
+    }
   });
   chartPrice.subscribeClick(param => {
     if (!param || !param.point || param.time === undefined) return;
@@ -1444,7 +1639,7 @@
     if (currentTool === 'cursor') { const hit = hitTest(param.point.x, param.point.y); selectedId = hit ? hit.id : null; return; }
     if (currentTool === 'eraser') {
       const hit = hitTest(param.point.x, param.point.y);
-      if (hit) { if (lockOn) { showDrawToast('Bản vẽ đang bị khoá — mở khoá để xoá'); return; } removeDrawing(hit.id); }
+      if (hit) { if (isDrawLocked(hit)) { showDrawToast('Bản vẽ đang bị khoá — mở khoá để xoá'); return; } removeDrawing(hit.id); }
       return;
     }
     if (currentTool === 'text') {
@@ -1468,7 +1663,8 @@
     if (e.key === 'Escape') { pendingPoints = []; previewPoint = null; selectedId = null; document.querySelector('.tool-btn[data-tool="cursor"]').click(); }
     if (e.key === 'Enter' && currentTool === 'polyline' && pendingPoints.length >= 2) { addDrawing({ type: 'polyline', points: pendingPoints.slice(), color: drawColor() }); pendingPoints = []; resetToolAfterUse(); }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
-      if (lockOn) { showDrawToast('Bản vẽ đang bị khoá — mở khoá để xoá'); return; }
+      const d = getSelectedDrawing();
+      if (isDrawLocked(d)) { showDrawToast('Bản vẽ đang bị khoá — mở khoá để xoá'); return; }
       removeDrawing(selectedId); selectedId = null;
     }
   });
@@ -1476,12 +1672,66 @@
   document.getElementById('clear-drawings').addEventListener('click', () => {
     if (lockOn) { showDrawToast('Đang khoá — mở khoá để xoá tất cả bản vẽ'); return; }
     if (!drawings.length) return;
-    if (!confirm('Xoá toàn bộ bản vẽ trên biểu đồ này?')) return;
-    drawings = []; selectedId = null; saveDrawings();
+    const lockedCount = drawings.filter(d => d.locked).length;
+    if (lockedCount && !confirm(`Có ${lockedCount} bản vẽ đang bị khoá riêng sẽ được giữ lại. Xoá tất cả bản vẽ còn lại?`)) return;
+    if (!lockedCount && !confirm('Xoá toàn bộ bản vẽ trên biểu đồ này?')) return;
+    drawings = drawings.filter(d => d.locked); selectedId = null; saveDrawings();
   });
 
   // Cho phép updateChart() nạp lại đúng bộ bản vẽ khi đổi mã coin
   window.__drawSystemOnSymbolChange = function () { loadDrawings(); selectedId = null; pendingPoints = []; previewPoint = null; };
+
+  // ===== Kéo-thả để DI CHUYỂN hoặc CHỈNH SỬA bản vẽ đã chọn (giống các sàn lớn) =====
+  // Kéo vào thân bản vẽ -> di chuyển toàn bộ. Kéo vào 1 chấm neo -> chỉnh lại điểm đó. Bị khoá thì không kéo được.
+  function coordToTimePrice(x, y) {
+    return { time: chartPrice.timeScale().coordinateToTime(x), price: candleSeries.coordinateToPrice(y) };
+  }
+  let dragDrawing = null, dragPointIndex = -1, dragOriginalPoints = null, dragStartTP = null, dragStartXY = null, isDragging = false;
+  const chartPriceEl = document.getElementById('chart-price');
+  chartPriceEl.addEventListener('pointerdown', e => {
+    if (e.target.closest('.draw-obj-toolbar')) return;
+    if (currentTool !== 'cursor' || !selectedId) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const d = getSelectedDrawing(); if (!d || isDrawLocked(d)) return;
+    const rect = chartPriceEl.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    let idx = -1;
+    (d.points || []).forEach((pt, i) => { const p = xy(pt); if (p && Math.hypot(x - p.x, y - p.y) <= 10) idx = i; });
+    if (idx === -1 && !hitTestOne(d, x, y, 8)) return;
+    dragDrawing = d; dragPointIndex = idx; dragOriginalPoints = d.points.map(p => ({ ...p }));
+    dragStartTP = coordToTimePrice(x, y); dragStartXY = { x, y }; isDragging = false;
+    try { chartPriceEl.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  chartPriceEl.addEventListener('pointermove', e => {
+    if (!dragDrawing) return;
+    const rect = chartPriceEl.getBoundingClientRect();
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    if (!isDragging) {
+      if (Math.hypot(x - dragStartXY.x, y - dragStartXY.y) < 3) return;
+      isDragging = true;
+      chartPrice.applyOptions({ handleScroll: false, handleScale: false });
+      objToolbar.classList.remove('show');
+    }
+    const tp = coordToTimePrice(x, y); if (tp.time == null || tp.price == null) return;
+    if (dragPointIndex >= 0) {
+      dragDrawing.points[dragPointIndex] = snapPoint(tp.time, tp.price);
+    } else {
+      const timeDelta = tp.time - dragStartTP.time, priceDelta = tp.price - dragStartTP.price;
+      dragDrawing.points = dragOriginalPoints.map(op => ({ time: op.time + timeDelta, price: op.price + priceDelta }));
+    }
+    e.preventDefault();
+  });
+  function endDrag(e) {
+    if (dragDrawing) {
+      if (isDragging) saveDrawings();
+      chartPrice.applyOptions({ handleScroll: true, handleScale: true });
+      try { if (e) chartPriceEl.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+    dragDrawing = null; dragPointIndex = -1; isDragging = false;
+  }
+  chartPriceEl.addEventListener('pointerup', endDrag);
+  chartPriceEl.addEventListener('pointercancel', endDrag);
+  chartPriceEl.addEventListener('pointerleave', e => { if (dragDrawing && !isDragging) endDrag(e); });
 
   const tooltip = document.createElement('div');
   tooltip.style = `position: absolute; display: none; padding: 10px; box-sizing: border-box; font-size: 13px; color: #fff; background-color: rgba(23, 28, 39, 0.95); border: 1px solid #2d3342; border-radius: 8px; pointer-events: none; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-family: sans-serif;`;
@@ -1748,8 +1998,13 @@
           const vData = { time, value: volume, color: close >= open ? currentUpColor+'59' : currentDownColor+'59' };
           parsedCandles.push(cData); parsedVolumes.push(vData); candlesDataMap.set(time, cData); volumesDataMap.set(time, vData);
         });
-        candleSeries.setData(parsedCandles); volumeSeries.setData(parsedVolumes);
-        candlesData = parsedCandles; volumesData = parsedVolumes; isLiveSignalPreview = false; runAIAnalysis();
+        candleSeries.setData(parsedCandles); volumeSeries.setData(parsedVolumes); applyDynamicPricePrecision(true); syncPriceScaleWidths();
+        candlesData = parsedCandles; volumesData = parsedVolumes;
+        // Ép tính lại RSI/EMA/MACD... NGAY khi vừa đồng bộ lại toàn bộ nến — nếu không, các pane chỉ báo
+        // (RSI, MACD...) sẽ giữ dữ liệu cũ cho tới tick websocket kế tiếp mới cập nhật, khiến đường RSI
+        // hiển thị "ngắn hơn" / lệch so với Nến và Volume (vốn đã có dữ liệu mới ngay lập tức ở trên).
+        updateAllIndicators();
+        isLiveSignalPreview = false; runAIAnalysis();
         const upd = document.getElementById('stat-updated'); if (upd) upd.innerText = new Date().toLocaleTimeString('vi-VN');
       }).catch(err => console.log("Lỗi đồng bộ dữ liệu API:", err));
   }
@@ -1779,6 +2034,8 @@
         const isLiveUp = liveCandle.close >= liveCandle.open;
         const liveVolume = { time, value: parseFloat(kline.v), color: isLiveUp ? currentUpColor+'59' : currentDownColor+'59' };
         candleSeries.update(liveCandle); volumeSeries.update(liveVolume); priceElement.innerText = fmt(liveCandle.close) + " USDT"; priceElement.className = "price-main num " + (isLiveUp ? "up" : "down");
+        applyDynamicPricePrecision();
+        syncPriceScaleWidths();
         candlesDataMap.set(time, liveCandle); volumesDataMap.set(time, liveVolume);
         const lastIdx = candlesData.length - 1;
         if (lastIdx >= 0 && candlesData[lastIdx].time === time){ candlesData[lastIdx] = liveCandle; volumesData[lastIdx] = liveVolume; } 
@@ -1856,6 +2113,18 @@
   document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', function(){ document.getElementById('symbol-input').value = this.getAttribute('data-symbol'); executeSearch(true); }));
   document.querySelectorAll('.tf-btn').forEach(btn => btn.addEventListener('click', function() { document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active')); this.classList.add('active'); currentInterval = this.getAttribute('data-interval'); localStorage.setItem('ok_interval', currentInterval); updateChart(); }));
   window.addEventListener('resize', resizeAllCharts);
+  // ResizeObserver: bám sát kích thước THẬT của khung chart-wrapper mọi lúc — không chỉ khi cửa sổ trình
+  // duyệt đổi kích thước. Điều này bắt được cả những trường hợp chiều cao đổi mà "resize" của window KHÔNG
+  // bắn ra: breakpoint CSS mobile/desktop, font web tải xong làm layout dịch chuyển, xoay ngang/dọc màn hình,
+  // thêm/xoá pane chỉ báo... Đây chính là nguyên nhân gây ra khoảng trắng lệch giữa các pane trên di động —
+  // canvas bên trong lightweight-charts bị "đóng băng" ở kích thước cũ trong khi khung CSS bên ngoài đã đổi.
+  if ('ResizeObserver' in window) {
+    const chartWrapperEl = document.getElementById('chart-wrapper');
+    if (chartWrapperEl) {
+      const roChartWrapper = new ResizeObserver(() => { resizeAllCharts(); });
+      roChartWrapper.observe(chartWrapperEl);
+    }
+  }
   
   document.getElementById('ai-switch').addEventListener('click', function() {
     aiEnabled = !aiEnabled;
