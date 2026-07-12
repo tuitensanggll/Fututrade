@@ -50,7 +50,15 @@
   .sentiment-card{ background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px 22px 20px; display:flex; flex-direction:column; height:380px; }
   .sentiment-head{ display:flex; align-items:center; justify-content:space-between; }
   .sentiment-title{ font-family:'Sora', sans-serif; font-weight:700; font-size:16px; color:#c7cdda; }
-  .sentiment-chevron{ color:var(--text-dim); font-size:20px; line-height:1; }
+  .sentiment-chevron{ color:var(--text-dim); display:flex; align-items:center; }
+  .sentiment-chevron .ico svg{ width:17px; height:17px; }
+
+  /* ===== Bộ icon lineal (nét mảnh, đồng bộ) dùng chung cho toàn bộ giao diện ===== */
+  .ico{ display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; line-height:0; vertical-align:-3px; }
+  .ico svg{ width:15px; height:15px; display:block; }
+  .ico-svg{ width:15px; height:15px; }
+  .ico-inline{ margin-right:4px; vertical-align:-2px; }
+  .ico-inline svg{ width:13px; height:13px; }
   .sentiment-gauge{ margin-top:6px; flex:1; display:flex; flex-direction:column; justify-content:center; }
   .sentiment-gauge svg{ width:100%; height:auto; display:block; }
 
@@ -63,7 +71,8 @@
   .sg-percent, .sg-label{ transition:fill .3s ease; }
   .sg-footer{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:2px; font-size:11.5px; color:var(--text-dim); font-family:'JetBrains Mono', monospace; flex-wrap:wrap; text-align:center; }
   .sg-footer b{ color:#c7cdda; }
-  .sg-delta{ font-weight:700; padding:2px 8px; border-radius:20px; font-size:11px; letter-spacing:.2px; }
+  .sg-delta{ font-weight:700; padding:2px 8px; border-radius:20px; font-size:11px; letter-spacing:.2px; display:inline-flex; align-items:center; }
+  .sg-delta .ico-inline{ margin-right:3px; vertical-align:middle; }
   .sg-delta.up{ color:#2ecc71; background:#2ecc7122; }
   .sg-delta.down{ color:#e0455c; background:#e0455c22; }
   .sg-delta.flat{ color:var(--text-dim); background:transparent; }
@@ -108,7 +117,8 @@
   .trend-name{ font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.6px; }
   .trend-basis{ font-size:10px; color:#4d5568; font-family:'JetBrains Mono', monospace; margin-top:2px; }
   .trend-badge{ display:flex; align-items:center; gap:8px; margin-top:12px; }
-  .trend-arrow{ font-size:20px; line-height:1; }
+  .trend-arrow{ font-size:20px; line-height:1; display:flex; align-items:center; }
+  .trend-arrow svg{ width:20px; height:20px; }
   .trend-label{ font-family:'Sora', sans-serif; font-weight:700; font-size:17px; }
   .trend-card.up .trend-arrow, .trend-card.up .trend-label{ color:var(--up); }
   .trend-card.down .trend-arrow, .trend-card.down .trend-label{ color:var(--down); }
@@ -128,7 +138,7 @@
   .color-pickers input[type="color"] { -webkit-appearance: none; -moz-appearance: none; appearance: none; border: none; width: 22px; height: 22px; border-radius: 4px; cursor: pointer; padding: 0; background: transparent; }
   .color-pickers input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
   .color-pickers input[type="color"]::-webkit-color-swatch { border: 1px solid var(--border); border-radius: 4px; }
-  .tf-action-btn{ background:var(--surface-alt); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; touch-action:manipulation; }
+  .tf-action-btn{ background:var(--surface-alt); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; touch-action:manipulation; display:inline-flex; align-items:center; gap:6px; }
   
   .ai-toggle{ display:flex; align-items:center; gap:9px; padding:8px 4px 10px 4px; }
   .ai-toggle-label{ font-size:12.5px; font-weight:600; color:var(--text-dim); display:flex; align-items:center; gap:6px; }
@@ -157,8 +167,8 @@
   .draw-obj-toolbar button{ width:26px; height:24px; border:none; border-radius:6px; background:transparent; color:var(--text-dim); font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s, color .15s; font-family:"JetBrains Mono", monospace; }
   .draw-obj-toolbar button:hover{ background:var(--surface-alt); color:var(--text); }
   .draw-obj-toolbar button.toggle-on{ background:rgba(240,185,11,0.18); color:var(--gold); }
-  .draw-obj-toolbar button.danger{ font-size:13px; }
   .draw-obj-toolbar button.danger:hover{ background:rgba(255,71,87,0.18); color:var(--down); }
+  .draw-obj-toolbar button svg{ width:15px; height:15px; }
   .draw-obj-toolbar .dot-swatch{ padding:0; }
   .draw-obj-toolbar .dot-swatch-inner{ width:15px; height:15px; border-radius:50%; border:2px solid #0e131b; box-shadow:0 0 0 1px rgba(255,255,255,.25); display:block; }
   .draw-obj-toolbar .dot-color-input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
@@ -173,7 +183,7 @@
   .sub-pane.drop-target-after{ box-shadow: inset 0 -3px 0 0 var(--accent); }
   .pane-header{ display:flex; align-items:center; gap:7px; padding:3px 10px; background:var(--surface-alt); cursor:grab; user-select:none; }
   .pane-header:active{ cursor:grabbing; }
-  .pane-drag{ color:var(--text-dim); font-size:12px; letter-spacing:-1px; }
+  .pane-drag{ color:var(--text-dim); display:inline-flex; align-items:center; cursor:grab; }
   .pane-title{ font-size:10.5px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; }
   #chart-volume{ width:100%; height:100px; min-height:60px; }
   #chart-rsi{ width:100%; height:110px; min-height:60px; }
@@ -194,14 +204,15 @@
   .ind-popover.show{ display:block; }
 
   /* NÚT + MENU THÊM CHỈ BÁO (giống các sàn lớn) */
-  .btn-add-ind{ background:var(--surface-alt); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; }
+  .btn-add-ind{ background:var(--surface-alt); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px; }
   .btn-add-ind:hover{ border-color:var(--accent); color:var(--accent); }
   .indicator-menu{ position:absolute; z-index:10002; width:270px; max-height:420px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px; box-shadow:0 12px 32px rgba(0,0,0,0.55); display:none; }
   .indicator-menu.show{ display:block; }
   .indicator-menu .im-cat{ font-size:10.5px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; padding:9px 8px 5px; }
   .indicator-menu .im-item{ display:flex; align-items:center; justify-content:space-between; padding:8px 9px; border-radius:7px; cursor:pointer; font-size:12.5px; color:#c7cdda; }
   .indicator-menu .im-item:hover{ background:var(--surface-alt); color:#fff; }
-  .indicator-menu .im-item .im-add{ color:var(--accent); font-weight:700; font-size:14px; }
+  .indicator-menu .im-item .im-add{ color:var(--accent); font-weight:700; font-size:14px; display:flex; align-items:center; }
+  .indicator-menu .im-item .im-add svg{ width:15px; height:15px; }
 
   /* PANE ĐỘNG (chỉ báo tự tạo pane riêng) + KÉO-THẢ CHỈ BÁO GIỮA CÁC PANE */
   .pane-header{ position:relative; }
@@ -231,7 +242,7 @@
   .ai-panel-title .dot{ width:7px; height:7px; border-radius:50%; box-shadow:0 0 8px 1px #3d8bff90; }
   
   /* Nút Xóa Tất Cả (Mới) */
-  .btn-clear-all { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: bold; transition: all 0.2s ease; }
+  .btn-clear-all { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: bold; transition: all 0.2s ease; display:inline-flex; align-items:center; gap:5px; }
   .btn-clear-all:hover { background: #ef4444; color: white; }
   
   /* Nút xóa lẻ (Mới) */
@@ -242,7 +253,7 @@
   .ai-empty{ padding:28px 18px; text-align:center; color:var(--text-dim); font-size:13px; }
   .signal-row{ display:flex; justify-content:space-between; align-items:flex-start; padding:12px 18px; border-bottom:1px solid #1a2029; }
   
-  .signal-badge{ flex-shrink:0; font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:6px; font-family:'JetBrains Mono', monospace; margin-top:1px; }
+  .signal-badge{ flex-shrink:0; font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:6px; font-family:'JetBrains Mono', monospace; margin-top:1px; display:inline-flex; align-items:center; gap:4px; }
   .signal-badge.warn{ background:var(--gold-dim); color:var(--gold); } .signal-badge.up{ background:var(--up-dim); color:var(--up); } .signal-badge.down{ background:var(--down-dim); color:var(--down); }
   .signal-meta{ display:flex; gap:10px; align-items:baseline; }
   .signal-time{ font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono', monospace; }
@@ -254,7 +265,9 @@
   .whale-toast { background: var(--surface-alt); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 10px; padding: 14px 18px; color: var(--text); box-shadow: 0 12px 32px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 14px; min-width: 280px; transform: translateX(120%); opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
   .whale-toast.show { transform: translateX(0); opacity: 1; }
   .whale-toast.buy { border-left-color: var(--up); } .whale-toast.sell { border-left-color: var(--down); }
-  .whale-icon { font-size: 24px; animation: bounce 2s infinite; }
+  .whale-icon { display:flex; align-items:center; gap:2px; animation: bounce 2s infinite; }
+  .whale-icon .ico svg{ width:22px; height:22px; }
+  .whale-toast.buy .whale-icon{ color:var(--up); } .whale-toast.sell .whale-icon{ color:var(--down); }
   @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
   .whale-content { display: flex; flex-direction: column; }
   .whale-title { font-size: 12px; font-weight: 800; font-family: 'Sora', sans-serif; text-transform: uppercase; letter-spacing: 0.5px;}
