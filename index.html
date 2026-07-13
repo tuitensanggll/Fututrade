@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<!-- Thư viện Quốc tế hóa Số điện thoại -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.4/build/css/intlTelInput.css">
+<script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.4/build/js/intlTelInput.min.js"></script>
 </head>
 <body>
 
@@ -342,19 +345,34 @@
   window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
     'size': 'normal'
   });
+    
+  // --- KHỞI TẠO GIAO DIỆN CHỌN MÃ QUỐC GIA ---
+  const phoneInputField = document.getElementById("phone-number");
+  const phoneInput = window.intlTelInput(phoneInputField, {
+    initialCountry: "vn", // Mặc định là cờ Việt Nam
+    separateDialCode: true, // Tách mã +84 ra một cục riêng cho đẹp
+    utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.4/build/js/utils.js", // Tự động format số
+  });
 
-  // Nút gửi OTP
+  // --- XỬ LÝ NÚT GỬI OTP ĐÃ NÂNG CẤP ---
   document.getElementById('btn-send-otp').addEventListener('click', () => {
-    const phoneNumber = document.getElementById('phone-number').value.trim();
-    if(!phoneNumber) return alert("Vui lòng nhập số điện thoại định dạng +84...");
+    
+    // 1. Thư viện tự động kiểm tra xem số điện thoại nhập vào có hợp lệ với quốc gia đã chọn hay không
+    if (!phoneInput.isValidNumber()) {
+      return alert("Số điện thoại không hợp lệ hoặc sai định dạng quốc gia!");
+    }
+
+    // 2. Thư viện TỰ ĐỘNG lấy số và chuyển về chuẩn E.164 (+84... hoặc +1...) để nộp cho Firebase
+    const phoneNumber = phoneInput.getNumber(); 
     
     const appVerifier = window.recaptchaVerifier;
     
+    // 3. Gửi số điện thoại siêu chuẩn lên Firebase
     signInWithPhoneNumber(auth, phoneNumber, appVerifier)
       .then((result) => {
         confirmationResult = result;
         document.getElementById('otp-input-group').style.display = 'flex';
-        alert("Mã OTP đã gửi! Vui lòng kiểm tra tin nhắn.");
+        alert("Mã OTP đã gửi! Vui lòng kiểm tra tin nhắn điện thoại.");
       })
       .catch((error) => {
         alert("Lỗi gửi SMS: " + error.message);
