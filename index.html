@@ -321,9 +321,61 @@
     </div>
   </div>
 
-  <style>.iti { width: 100% !important; }</style>
+  <style>
+    /* --- CUSTOM LẠI TOÀN BỘ Ô CHỌN QUỐC GIA CHUẨN DARK MODE BINANCE --- */
+    .iti { 
+      width: 100% !important; 
+      margin-bottom: 15px; 
+    }
+    
+    /* Hộp danh sách quốc gia xổ xuống */
+    .iti__country-list {
+      background-color: var(--surface-alt) !important; 
+      border: 1px solid var(--border) !important;      
+      border-radius: 8px !important;
+      max-height: 220px !important;
+      color: var(--text) !important;                  
+      font-family: 'Inter', sans-serif !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+      overflow-x: hidden !important;
+    }
+
+    /* Từng dòng quốc gia trong danh sách */
+    .iti__country {
+      padding: 10px 14px !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 10px !important;
+    }
+
+    /* Tên quốc gia và mã số */
+    .iti__country-name, .iti__dial-code {
+      color: var(--text) !important;
+    }
+
+    /* Khi di chuột hoặc dùng phím mũi tên chọn dòng */
+    .iti__country:hover, .iti__country.iti__highlight {
+      background-color: var(--border) !important;    
+    }
+
+    /* Khi dòng đó được chọn, chữ đổi sang màu xanh neon */
+    .iti__country:hover .iti__country-name, 
+    .iti__country.iti__highlight .iti__country-name,
+    .iti__country:hover .iti__dial-code,
+    .iti__country.iti__highlight .iti__dial-code {
+      color: var(--accent) !important; 
+      font-weight: 600;
+    }
+
+    /* Mã số điện thoại nằm cạnh lá cờ ở ô input chính */
+    .iti__selected-dial-code {
+      color: var(--text) !important;
+      margin-left: 6px !important;
+      font-weight: 500;
+    }
+  </style>
   <script src="script.js"></script>
-  <script type="module">
+  
   <script type="module">
   import { initializeApp } from "firebase/app";
   import { getAuth, signInWithPhoneNumber, RecaptchaVerifier } from "firebase/auth";
@@ -341,10 +393,12 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
 
-  // 2. Kích hoạt thư viện ô nhập số điện thoại
+// --- KHỞI TẠO Ô NHẬP SỐ ĐIỆN THOẠI (ĐẨY VIỆT NAM LÊN ĐẦU) ---
   const phoneInputField = document.querySelector("#phone-number");
   const phoneInput = window.intlTelInput(phoneInputField, {
-    preferredCountries: ["vn", "us"],
+    initialCountry: "vn",         
+    preferredCountries: ["vn"],   
+    separateDialCode: true,       
     utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js",
   });
 
