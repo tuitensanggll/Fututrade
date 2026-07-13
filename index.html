@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+</script>
 </head>
 <body>
 
@@ -25,6 +26,16 @@
       <img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt="Facebook">
       Tiếp tục với Facebook
     </button>
+      
+      <div id="otp-input-group" style="display: none; margin-top: 12px;">
+        <input type="text" id="otp-code" placeholder="Nhập 6 số mã OTP">
+        <button id="btn-verify-otp">Xác nhận</button>
+      </div>
+      
+      <div id="recaptcha-container" style="margin-top: 12px;"></div>
+    </div>
+  </div>
+</div>
 
   <div class="topbar">
     <div class="brand">
@@ -272,7 +283,7 @@
       
       <div class="setting-group" style="text-align: left; margin-bottom: 15px;">
         <label style="display: block; margin-bottom: 8px;">Số điện thoại của bạn:</label>
-        <input type="tel" id="phone-number" style="width: 100%; padding: 10px 10px 10px 90px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+        <input type="tel" id="phone-number" style="width: 100%; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
       </div>
 
       <div id="recaptcha-container" style="margin: 15px auto; display: flex; justify-content: center;"></div>
@@ -290,12 +301,6 @@
   </div>
 
   <style>
-    #phone-number {
-  padding-left: 95px !important; /* Đẩy chữ sang phải nhường chỗ cho cờ và +84 */
-}
-.iti--separate-dial-code .iti__selected-flag {
-  min-width: 80px !important; /* Giữ khoảng cách cố định cho mã vùng */
-}
     /* --- CUSTOM LẠI TOÀN BỘ Ô CHỌN QUỐC GIA CHUẨN DARK MODE BINANCE --- */
     .iti { 
       width: 100% !important; 
@@ -348,12 +353,13 @@
       font-weight: 500;
     }
   </style>
-<script type="module">
-  // Nhập thư viện Firebase chuẩn chạy trên Web GitHub Pages
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, FacebookAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  <script src="script.js"></script>
+  
+  <script type="module">
+  import { initializeApp } from "firebase/app";
+  import { getAuth, signInWithPhoneNumber, RecaptchaVerifier } from "firebase/auth";
 
-  // 1. cấu hình Firebase Console
+  // 1. Thay cấu hình Firebase Console của bạn vào đây
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_AUTH_DOMAIN",
@@ -508,46 +514,6 @@
     signInWithPopup(auth, provider).catch(err => alert("Lỗi đăng nhập Facebook: " + err.message));
   });
 
-  // 4. Xử lý Đăng nhập qua Số điện thoại (SMS OTP)
-  let confirmationResult = null;
-  
-  // Khởi tạo bộ xác thực Captcha ẩn/hiện để tránh bot spam SMS
-  window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-    'size': 'normal'
-  });
-    
-  // --- KHỞI TẠO GIAO DIỆN CHỌN MÃ QUỐC GIA ---
-  const phoneInputField = document.getElementById("phone-number");
-  const phoneInput = window.intlTelInput(phoneInputField, {
-    initialCountry: "vn", // Mặc định là cờ Việt Nam
-    separateDialCode: true, // Tách mã +84 ra một cục riêng cho đẹp
-    utilsScript: "https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.4/build/js/utils.js", // Tự động format số
-  });
-
-  // --- XỬ LÝ NÚT GỬI OTP ĐÃ NÂNG CẤP ---
-  document.getElementById('btn-send-otp').addEventListener('click', () => {
-    
-    // 1. Thư viện tự động kiểm tra xem số điện thoại nhập vào có hợp lệ với quốc gia đã chọn hay không
-    if (!phoneInput.isValidNumber()) {
-      return alert("Số điện thoại không hợp lệ hoặc sai định dạng quốc gia!");
-    }
-
-    // 2. Thư viện TỰ ĐỘNG lấy số và chuyển về chuẩn E.164 (+84... hoặc +1...) để nộp cho Firebase
-    const phoneNumber = phoneInput.getNumber(); 
-    
-    const appVerifier = window.recaptchaVerifier;
-    
-    // 3. Gửi số điện thoại siêu chuẩn lên Firebase
-    signInWithPhoneNumber(auth, phoneNumber, appVerifier)
-      .then((result) => {
-        confirmationResult = result;
-        document.getElementById('otp-input-group').style.display = 'flex';
-        alert("Mã OTP đã gửi! Vui lòng kiểm tra tin nhắn điện thoại.");
-      })
-      .catch((error) => {
-        alert("Lỗi gửi SMS: " + error.message);
-      });
-  });
 
   // Nút xác nhận mã OTP
   document.getElementById('btn-verify-otp').addEventListener('click', () => {
