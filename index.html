@@ -15,7 +15,7 @@
   <div id="auth-overlay" class="auth-overlay">
   <div class="auth-box">
     <div class="auth-brand">FUTU TRADE</div>
-    <div class="auth-subtitle">Hệ thống Terminal Crypto dành cho Sinh viên UTH</div>
+    <div class="auth-subtitle">Hệ thống Terminal Crypto Demo</div>
     
     <button class="btn-auth btn-google" id="btn-google">
       <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google">
@@ -300,58 +300,8 @@
     </div>
   </div>
 
-  <style>
-    /* --- CUSTOM LẠI TOÀN BỘ Ô CHỌN QUỐC GIA CHUẨN DARK MODE BINANCE --- */
-    .iti { 
-      width: 100% !important; 
-      margin-bottom: 15px; 
-    }
+  <style></style>
     
-    /* Hộp danh sách quốc gia xổ xuống */
-    .iti__country-list {
-      background-color: var(--surface-alt) !important; 
-      border: 1px solid var(--border) !important;      
-      border-radius: 8px !important;
-      max-height: 220px !important;
-      color: var(--text) !important;                  
-      font-family: 'Inter', sans-serif !important;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
-      overflow-x: hidden !important;
-    }
-
-    /* Từng dòng quốc gia trong danh sách */
-    .iti__country {
-      padding: 10px 14px !important;
-      display: flex !important;
-      align-items: center !important;
-      gap: 10px !important;
-    }
-
-    /* Tên quốc gia và mã số */
-    .iti__country-name, .iti__dial-code {
-      color: var(--text) !important;
-    }
-
-    /* Khi di chuột hoặc dùng phím mũi tên chọn dòng */
-    .iti__country:hover, .iti__country.iti__highlight {
-      background-color: var(--border) !important;    
-    }
-
-    /* Khi dòng đó được chọn, chữ đổi sang màu xanh neon */
-    .iti__country:hover .iti__country-name, 
-    .iti__country.iti__highlight .iti__country-name,
-    .iti__country:hover .iti__dial-code,
-    .iti__country.iti__highlight .iti__dial-code {
-      color: var(--accent) !important; 
-      font-weight: 600;
-    }
-
-    /* Mã số điện thoại nằm cạnh lá cờ ở ô input chính */
-    .iti__selected-dial-code {
-      color: var(--text) !important;
-      margin-left: 6px !important;
-      font-weight: 500;
-    }
   </style>
   <script src="script.js"></script>
   
@@ -372,14 +322,6 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
 
-// --- KHỞI TẠO Ô NHẬP SỐ ĐIỆN THOẠI (ĐẨY VIỆT NAM LÊN ĐẦU) ---
-  const phoneInputField = document.querySelector("#phone-number");
-  const phoneInput = window.intlTelInput(phoneInputField, {
-    initialCountry: "vn",         
-    preferredCountries: ["vn"],   
-    separateDialCode: true,       
-    utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js",
-  });
 
   // 3. Khởi tạo bộ xác thực reCAPTCHA chống spam của Google
   window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
@@ -389,61 +331,7 @@
 
   let confirmationResult = null;
 
-  // 4. LOGIC XỬ LÝ NÚT GỬI OTP (BẢO ĐẢM KHÔNG LỖI ĐỊNH DẠNG)
- // --- XỬ LÝ NÚT GỬI OTP SIÊU THÔNG MINH (TỰ ĐỘNG BÓC TÁCH MÃ QUỐC GIA TỪ LÁ CỜ) ---
-  document.getElementById('btn-send-otp').addEventListener('click', () => {
-    
-    // 1. Tự động lấy mã vùng của quốc gia đang chọn trên lá cờ (Ví dụ: VN là 84, Mỹ là 1,...)
-    const countryData = phoneInput.getSelectedCountryData();
-    const dialCode = countryData.dialCode; 
-    
-    // 2. Lấy số điện thoại thô do bạn gõ vào ô input
-    let rawNumber = document.getElementById('phone-number').value.trim();
-    
-    if (!rawNumber) {
-      return alert("Vui lòng nhập số điện thoại!");
-    }
-
-    // 3. THUẬT TOÁN TỰ ĐỘNG LÀM SẠCH SỐ ĐIỆN THOẠI:
-    // Xóa bỏ mọi khoảng trắng, dấu gạch ngang lỡ gõ vào
-    rawNumber = rawNumber.replace(/[\s\-\(\)]/g, '');
-
-    // Nếu bạn gõ số 0 ở đầu (Ví dụ chọn cờ VN xong gõ: 0794392411) -> Tự cắt bỏ số 0 đi
-    if (rawNumber.startsWith('0')) {
-      rawNumber = rawNumber.substring(1);
-    }
-
-    // Nếu bạn lỡ tay gõ cả mã vùng vào ô nhập (Ví dụ chọn cờ VN xong gõ tiếp +8479... hoặc 8479...)
-    if (rawNumber.startsWith('+' + dialCode)) {
-      rawNumber = rawNumber.substring(('+' + dialCode).length);
-    } else if (rawNumber.startsWith(dialCode)) {
-      rawNumber = rawNumber.substring(dialCode.length);
-    }
-
-    // 4. GHÉP LẠI THÀNH CHUỖI E.164 HOÀN HẢO GỬI LÊN FIREBASE (Dạng chuẩn: +84794392411)
-    const finalPhoneNumber = `+${dialCode}${rawNumber}`;
-    
-    console.log("Số điện thoại chuẩn gửi đi:", finalPhoneNumber);
-
-    const appVerifier = window.recaptchaVerifier;
-    
-    // 5. Gửi số điện thoại đã được xử lý chuẩn lên hệ thống SMS Firebase
-    signInWithPhoneNumber(auth, finalPhoneNumber, appVerifier)
-      .then((result) => {
-        confirmationResult = result;
-        // Hiện ô nhập OTP và nút Xác thực lên
-        document.getElementById('otp-input-group').style.display = 'block';
-        document.getElementById('btn-verify-otp').style.display = 'block';
-        document.getElementById('btn-send-otp').style.display = 'none';
-        alert("Mã OTP đã gửi! Vui lòng kiểm tra tin nhắn điện thoại.");
-      })
-      .catch((error) => {
-        console.error("Lỗi gửi Firebase:", error);
-        alert("Lỗi gửi SMS: " + error.message);
-      });
-  });
-
-  // 5. XỬ LÝ NÚT XÁC THỰC MÃ OTP DO NGƯỜI DÙNG NHẬP VÀO
+  // XỬ LÝ NÚT XÁC THỰC MÃ OTP DO NGƯỜI DÙNG NHẬP VÀO
   document.getElementById('btn-verify-otp').addEventListener('click', () => {
     const code = document.getElementById('otp-code').value.trim();
     if (code.length !== 6) {
