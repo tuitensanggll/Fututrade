@@ -12,30 +12,36 @@
 </head>
 <body>
   
-  <div id="auth-overlay" class="auth-overlay" style="display:none;"></div>
-  <div class="auth-box">
-    <div class="auth-brand">FUTU TRADE</div>
-    <div class="auth-subtitle">Hệ thống Terminal Crypto Demo</div>
-    
-    <button class="btn-auth btn-google" id="btn-google">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google">
-      Tiếp tục với Google
-    </button>
-    
-    <button class="btn-auth btn-facebook" id="btn-facebook">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt="Facebook">
-      Tiếp tục với Facebook
-    </button>
-      
-      <div id="otp-input-group" style="display: none; margin-top: 12px;">
-        <input type="text" id="otp-code" placeholder="Nhập 6 số mã OTP">
-        <button id="btn-verify-otp">Xác nhận</button>
+  <div id="auth-overlay" class="auth-overlay" style="display:none;">
+    <div class="auth-box">
+      <div class="auth-brand">FUTU TRADE</div>
+      <div class="auth-subtitle">Đăng nhập hoặc tạo tài khoản để mở khóa hệ thống Terminal Crypto</div>
+
+      <button class="btn-auth btn-google" id="btn-google" type="button">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google">
+        Tiếp tục với Google
+      </button>
+
+      <button class="btn-auth btn-facebook" id="btn-facebook" type="button">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt="Facebook">
+        Tiếp tục với Facebook
+      </button>
+
+      <div class="auth-divider">HOẶC DÙNG SỐ ĐIỆN THOẠI</div>
+
+      <div id="phone-input-group">
+        <input type="tel" id="phone-number" placeholder="+84 912 345 678">
+        <button id="btn-send-otp" type="button">Gửi mã</button>
       </div>
-      
-      <div id="recaptcha-container" style="margin-top: 12px;"></div>
+
+      <div id="otp-input-group" style="display:none; margin-top:12px;">
+        <input type="text" id="otp-code" placeholder="Nhập 6 số mã OTP" maxlength="6" inputmode="numeric">
+        <button id="btn-verify-otp" type="button">Xác nhận</button>
+      </div>
+
+      <div id="recaptcha-container" style="margin-top:14px; display:flex; justify-content:center;"></div>
     </div>
   </div>
-</div>
 
   <div class="topbar">
     <div class="brand">
@@ -306,89 +312,15 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="auth-modal" style="display: flex; z-index: 9999; justify-content: center; align-items: center;">
-    <div class="modal-box" style="max-width: 400px; text-align: center; width: 100%;">
-      <div class="modal-title" style="justify-content: center; font-size: 20px; color: var(--accent); font-family: 'Sora', sans-serif;">
-        XÁC THỰC TRUY CẬP
-      </div>
-      <p style="color: var(--text-dim); font-size: 13px; margin-bottom: 20px;">Vui lòng xác thực số điện thoại để mở khóa hệ thống Terminal.</p>
-      
-      <div class="setting-group" style="text-align: left; margin-bottom: 15px;">
-        <label style="display: block; margin-bottom: 8px;">Số điện thoại của bạn:</label>
-        <input type="tel" id="phone-number" style="width: 100%; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
-      </div>
-
-      <div id="recaptcha-container" style="margin: 15px auto; display: flex; justify-content: center;"></div>
-
-      <div class="setting-group" id="otp-input-group" style="text-align: left; margin-bottom: 15px; display: none;">
-        <label style="display: block; margin-bottom: 8px;">Nhập mã OTP (6 chữ số):</label>
-        <input type="text" id="otp-code" placeholder="------" style="width: 100%; text-align: center; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; letter-spacing: 6px; font-size: 18px; font-family: monospace;">
-      </div>
-
-      <div style="margin-top: 20px; display: flex; gap: 10px;">
-        <button class="btn-save" id="btn-send-otp" style="width: 100%; padding: 12px;">Gửi mã OTP</button>
-        <button class="btn-save" id="btn-verify-otp" style="width: 100%; padding: 12px; display: none; background: var(--up);">Xác thực OTP</button>
-      </div>
-    </div>
-  </div>
-
-  <style></style>
-    
-  </style>
   <script src="script.js"></script>
-  
-  <script type="module">
-  import { initializeApp } from "firebase/app";
-  import { getAuth, signInWithPhoneNumber, RecaptchaVerifier } from "firebase/auth";
-
-  // 1. Thay cấu hình Firebase Console của bạn vào đây
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-
-
-  // 3. Khởi tạo bộ xác thực reCAPTCHA chống spam của Google
-  window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
-    'size': 'normal',
-    'callback': (response) => {}
-  }, auth);
-
-  let confirmationResult = null;
-
-  // XỬ LÝ NÚT XÁC THỰC MÃ OTP DO NGƯỜI DÙNG NHẬP VÀO
-  document.getElementById('btn-verify-otp').addEventListener('click', () => {
-    const code = document.getElementById('otp-code').value.trim();
-    if (code.length !== 6) {
-      alert("Vui lòng nhập đầy đủ 6 chữ số OTP!");
-      return;
-    }
-
-    confirmationResult.confirm(code)
-      .then((result) => {
-        alert("Xác thực thành công! Hệ thống Terminal đã sẵn sàng.");
-        document.getElementById('auth-modal').style.display = 'none'; // Ẩn màn hình khóa, cho phép dùng biểu đồ
-      })
-      .catch((error) => {
-        alert("Mã OTP bạn nhập không chính xác hoặc đã quá hạn! Vui lòng kiểm tra lại.");
-      });
-  });
-</script>
 
   <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { 
-    getAuth, 
-    onAuthStateChanged, 
-    signInWithPopup, 
-    GoogleAuthProvider, 
+  import {
+    getAuth,
+    onAuthStateChanged,
+    signInWithPopup,
+    GoogleAuthProvider,
     FacebookAuthProvider,
     RecaptchaVerifier,
     signInWithPhoneNumber,
@@ -469,6 +401,14 @@
       authOverlay.style.display = 'flex';
       profileWrap.style.display = 'none';
       profileWrap.classList.remove('open');
+
+      // Trả khung đăng nhập về trạng thái ban đầu (nhập SĐT, chưa nhập OTP)
+      document.getElementById('phone-input-group').style.display = 'flex';
+      document.getElementById('otp-input-group').style.display = 'none';
+      document.getElementById('recaptcha-container').style.display = 'flex';
+      document.getElementById('phone-number').value = '';
+      document.getElementById('otp-code').value = '';
+      confirmationResult = null;
     }
   });
 
@@ -482,6 +422,59 @@
   document.getElementById('btn-facebook').addEventListener('click', () => {
     const provider = new FacebookAuthProvider();
     signInWithPopup(auth, provider).catch(err => alert("Lỗi đăng nhập Facebook: " + err.message));
+  });
+
+  // 3b. Đăng nhập bằng số điện thoại + mã OTP
+  let confirmationResult = null;
+
+  function getRecaptchaVerifier() {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'normal',
+        callback: () => {}
+      });
+    }
+    return window.recaptchaVerifier;
+  }
+
+  document.getElementById('btn-send-otp').addEventListener('click', () => {
+    const phoneNumber = document.getElementById('phone-number').value.trim();
+    if (!phoneNumber || !phoneNumber.startsWith('+')) {
+      alert("Vui lòng nhập số điện thoại đầy đủ mã quốc gia, ví dụ: +84912345678");
+      return;
+    }
+
+    const sendBtn = document.getElementById('btn-send-otp');
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Đang gửi...';
+
+    signInWithPhoneNumber(auth, phoneNumber, getRecaptchaVerifier())
+      .then((result) => {
+        confirmationResult = result;
+        document.getElementById('phone-input-group').style.display = 'none';
+        document.getElementById('otp-input-group').style.display = 'flex';
+        document.getElementById('recaptcha-container').style.display = 'none';
+      })
+      .catch((err) => {
+        alert("Không gửi được mã OTP: " + err.message);
+      })
+      .finally(() => {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Gửi mã';
+      });
+  });
+
+  document.getElementById('btn-verify-otp').addEventListener('click', () => {
+    const code = document.getElementById('otp-code').value.trim();
+    if (code.length !== 6 || !confirmationResult) {
+      alert("Vui lòng nhập đầy đủ 6 chữ số OTP!");
+      return;
+    }
+
+    confirmationResult.confirm(code)
+      .catch((err) => {
+        alert("Mã OTP không chính xác hoặc đã hết hạn! Vui lòng kiểm tra lại.");
+      });
   });
 
   // 4. Mở / đóng dropdown profile
@@ -507,20 +500,6 @@
     signOut(auth).then(() => {
       profileWrap.classList.remove('open');
     }).catch(err => alert("Lỗi đăng xuất: " + err.message));
-  });
-
-  // Nút xác nhận mã OTP
-  document.getElementById('btn-verify-otp').addEventListener('click', () => {
-    const code = document.getElementById('otp-code').value.trim();
-    if(!code || !confirmationResult) return alert("Vui lòng nhập mã OTP");
-
-    confirmationResult.confirm(code)
-      .then((result) => {
-        alert("Đăng nhập thành công!");
-      })
-      .catch((error) => {
-        alert("Mã OTP không chính xác hoặc đã hết hạn!");
-      });
   });
 </script>
 </body>
