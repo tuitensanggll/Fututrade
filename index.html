@@ -8,20 +8,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<!-- Thư viện Quốc tế hóa Số điện thoại -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.4/build/css/intlTelInput.css">
-<script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.4/build/js/intlTelInput.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
-
-<script type="importmap">
-  {
-    "imports": {
-      "firebase/app": "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js",
-      "firebase/auth": "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js"
-    }
-  }
-</script>
 </head>
 <body>
 
@@ -39,24 +25,6 @@
       <img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt="Facebook">
       Tiếp tục với Facebook
     </button>
-    
-    <div class="auth-divider"><span>HOẶC SỐ ĐIỆN THOẠI</span></div>
-    
-    <div class="phone-auth-container">
-      <div id="phone-input-group">
-        <input type="text" id="phone-number" placeholder="+84 901 234 567">
-        <button id="btn-send-otp">Gửi mã</button>
-      </div>
-      
-      <div id="otp-input-group" style="display: none; margin-top: 12px;">
-        <input type="text" id="otp-code" placeholder="Nhập 6 số mã OTP">
-        <button id="btn-verify-otp">Xác nhận</button>
-      </div>
-      
-      <div id="recaptcha-container" style="margin-top: 12px;"></div>
-    </div>
-  </div>
-</div>
 
   <div class="topbar">
     <div class="brand">
@@ -380,12 +348,12 @@
       font-weight: 500;
     }
   </style>
-  <script src="script.js"></script>
-  <script type="module">
-  import { initializeApp } from "firebase/app";
-  import { getAuth, signInWithPhoneNumber, RecaptchaVerifier } from "firebase/auth";
+<script type="module">
+  // Nhập thư viện Firebase chuẩn chạy trên Web GitHub Pages
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, FacebookAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-  // 1. Thay cấu hình Firebase Console của bạn vào đây
+  // 1. cấu hình Firebase Console
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_AUTH_DOMAIN",
