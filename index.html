@@ -11,6 +11,17 @@
 <!-- Thư viện Quốc tế hóa Số điện thoại -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.4/build/css/intlTelInput.css">
 <script src="https://cdn.jsdelivr.net/npm/intl-tel-input@23.0.4/build/js/intlTelInput.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
+
+<script type="importmap">
+  {
+    "imports": {
+      "firebase/app": "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js",
+      "firebase/auth": "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js"
+    }
+  }
+</script>
 </head>
 <body>
 
@@ -284,7 +295,119 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="auth-modal" style="display: flex; z-index: 9999; justify-content: center; align-items: center;">
+    <div class="modal-box" style="max-width: 400px; text-align: center; width: 100%;">
+      <div class="modal-title" style="justify-content: center; font-size: 20px; color: var(--accent); font-family: 'Sora', sans-serif;">
+        XÁC THỰC TRUY CẬP
+      </div>
+      <p style="color: var(--text-dim); font-size: 13px; margin-bottom: 20px;">Vui lòng xác thực số điện thoại để mở khóa hệ thống Terminal.</p>
+      
+      <div class="setting-group" style="text-align: left; margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 8px;">Số điện thoại của bạn:</label>
+        <input type="tel" id="phone-number" style="width: 100%; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      </div>
+
+      <div id="recaptcha-container" style="margin: 15px auto; display: flex; justify-content: center;"></div>
+
+      <div class="setting-group" id="otp-input-group" style="text-align: left; margin-bottom: 15px; display: none;">
+        <label style="display: block; margin-bottom: 8px;">Nhập mã OTP (6 chữ số):</label>
+        <input type="text" id="otp-code" placeholder="------" style="width: 100%; text-align: center; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; letter-spacing: 6px; font-size: 18px; font-family: monospace;">
+      </div>
+
+      <div style="margin-top: 20px; display: flex; gap: 10px;">
+        <button class="btn-save" id="btn-send-otp" style="width: 100%; padding: 12px;">Gửi mã OTP</button>
+        <button class="btn-save" id="btn-verify-otp" style="width: 100%; padding: 12px; display: none; background: var(--up);">Xác thực OTP</button>
+      </div>
+    </div>
+  </div>
+
+  <style>.iti { width: 100% !important; }</style>
   <script src="script.js"></script>
+  <script type="module">
+  <script type="module">
+  import { initializeApp } from "firebase/app";
+  import { getAuth, signInWithPhoneNumber, RecaptchaVerifier } from "firebase/auth";
+
+  // 1. Thay cấu hình Firebase Console của bạn vào đây
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_STORAGE_BUCKET",
+    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  // 2. Kích hoạt thư viện ô nhập số điện thoại
+  const phoneInputField = document.querySelector("#phone-number");
+  const phoneInput = window.intlTelInput(phoneInputField, {
+    preferredCountries: ["vn", "us"],
+    utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js",
+  });
+
+  // 3. Khởi tạo bộ xác thực reCAPTCHA chống spam của Google
+  window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
+    'size': 'normal',
+    'callback': (response) => {}
+  }, auth);
+
+  let confirmationResult = null;
+
+  // 4. LOGIC XỬ LÝ NÚT GỬI OTP (BẢO ĐẢM KHÔNG LỖI ĐỊNH DẠNG)
+  document.getElementById('btn-send-otp').addEventListener('click', () => {
+    // Gọi hàm getNumber() để tự động thêm mã quốc gia dạng +84 vào đầu số
+    let phoneNumber = phoneInput.getNumber(); 
+
+    // Bộ lọc thông minh: Nếu người dùng gõ thừa số 0 ở đầu (+84079...), tự động cắt bỏ số 0 thừa
+    if (phoneNumber.startsWith('+840')) {
+      phoneNumber = '+84' + phoneNumber.substring(4);
+    }
+
+    // Kiểm tra tính hợp lệ bắt buộc của Firebase Auth
+    if (!phoneNumber.startsWith('+')) {
+      alert("Số điện thoại không hợp lệ hoặc thiếu mã vùng quốc gia!");
+      return;
+    }
+
+    const appVerifier = window.recaptchaVerifier;
+
+    // Gửi số điện thoại chuẩn E.164 lên Firebase
+    signInWithPhoneNumber(auth, phoneNumber, appVerifier)
+      .then((result) => {
+        confirmationResult = result;
+        // Chuyển đổi trạng thái giao diện sang nhập mã OTP
+        document.getElementById('otp-input-group').style.display = 'block';
+        document.getElementById('btn-verify-otp').style.display = 'block';
+        document.getElementById('btn-send-otp').style.display = 'none';
+        alert("Mã OTP đã được gửi thành công đến điện thoại của bạn!");
+      })
+      .catch((error) => {
+        console.error(error);
+        alert("Lỗi gửi SMS: " + error.message + "\n(Hãy chắc chắn bạn đã bật tính năng 'Phone' trong phần Authentication trên Firebase Console nhé!)");
+      });
+  });
+
+  // 5. XỬ LÝ NÚT XÁC THỰC MÃ OTP DO NGƯỜI DÙNG NHẬP VÀO
+  document.getElementById('btn-verify-otp').addEventListener('click', () => {
+    const code = document.getElementById('otp-code').value.trim();
+    if (code.length !== 6) {
+      alert("Vui lòng nhập đầy đủ 6 chữ số OTP!");
+      return;
+    }
+
+    confirmationResult.confirm(code)
+      .then((result) => {
+        alert("Xác thực thành công! Hệ thống Terminal đã sẵn sàng.");
+        document.getElementById('auth-modal').style.display = 'none'; // Ẩn màn hình khóa, cho phép dùng biểu đồ
+      })
+      .catch((error) => {
+        alert("Mã OTP bạn nhập không chính xác hoặc đã quá hạn! Vui lòng kiểm tra lại.");
+      });
+  });
+</script>
 
   <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
