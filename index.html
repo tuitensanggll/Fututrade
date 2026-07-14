@@ -6,7 +6,7 @@
 <title>FUTU TRADE  CRYPTO TERMINAL - ĐƯỢC PHÁT TRIỂN BỞI SINH VIÊN VÕ THANH SANG(UTH)</title>
 <script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </script>
 </head>
@@ -14,7 +14,9 @@
   
   <div id="auth-overlay" class="auth-overlay" style="display:none;">
   <div class="auth-scene" aria-hidden="true">
-    <div class="auth-scene-bg"></div>
+    <div class="auth-scene-scroll">
+      <img class="auth-scene-bg" src="auth-bg.png" alt="">
+    </div>
     <div class="auth-scene-vignette"></div>
     <div class="auth-stars"></div>
     <div class="auth-stars--far"></div>
@@ -30,17 +32,26 @@
     <div class="auth-scanlines"></div>
   </div>
   <div class="auth-box">
+    <span class="auth-corner tl" aria-hidden="true"></span>
+    <span class="auth-corner tr" aria-hidden="true"></span>
+    <span class="auth-corner bl" aria-hidden="true"></span>
+    <span class="auth-corner br" aria-hidden="true"></span>
+
+    <div class="auth-eyebrow"><span class="auth-eyebrow-dot"></span>BUSINESS</div>
+
     <div class="auth-brand">FUTU TRADE</div>
     <div class="auth-subtitle">Hệ thống Terminal Crypto Demo</div>
-    
+
+    <div class="auth-seal" aria-hidden="true"><span></span></div>
+
     <button class="btn-auth btn-google" id="btn-google">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt="Google">
-      Tiếp tục với Google
+      <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt=""></span>
+      <span class="btn-auth-label">Tiếp tục với Google</span>
     </button>
-    
+
     <button class="btn-auth btn-facebook" id="btn-facebook">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt="Facebook">
-      Tiếp tục với Facebook
+      <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt=""></span>
+      <span class="btn-auth-label">Tiếp tục với Facebook</span>
     </button>
       
       <div id="otp-input-group" style="display: none; margin-top: 12px;">
@@ -49,6 +60,8 @@
       </div>
       
       <div id="recaptcha-container" style="margin-top: 12px;"></div>
+
+      <div class="auth-footnote">KHÔNG LƯU MẬT KHẨU</div>
     </div>
   </div>
 
@@ -478,11 +491,13 @@
     if (user) {
       // Đã đăng nhập -> Mở khóa ẩn màn hình Login đi
       authOverlay.style.display = 'none';
+      document.documentElement.classList.remove('auth-locked'); // mở lại cuộn trang chính
       renderProfile(user);
       console.log("User hiện tại:", user.uid);
     } else {
       // Chưa đăng nhập -> Hiện màn hình khóa bắt buộc
       authOverlay.style.display = 'flex';
+      document.documentElement.classList.add('auth-locked'); // khoá cuộn trang chính, tránh lộ thanh trượt vô dụng phía sau overlay
       profileWrap.style.display = 'none';
       profileWrap.classList.remove('open');
     }
