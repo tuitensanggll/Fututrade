@@ -530,9 +530,9 @@
   position: absolute; inset: -4%;
   background-image: url('auth-bg.png');
   background-size: cover;
-  background-position: center 60%;
-  animation: auth-bg-kenburns 22s ease-in-out infinite alternate;
-  filter: saturate(1.05) contrast(1.03);
+  background-position: center 50%;
+  animation: auth-bg-kenburns 25s ease-in-out infinite alternate;
+  filter: saturate(1.05) contrast(1.00);
 }
 @keyframes auth-bg-kenburns {
   0%   { transform: scale(1) translate(0, 0); }
