@@ -411,7 +411,7 @@
   --ag-glass: rgba(6,8,13,.72);
 
   position: relative;
-  background: linear-gradient(180deg, var(--ag-glass), rgba(28, 35, 75, 0.86));
+  background: rgba(28, 35, 75, 0.86);
   backdrop-filter: blur(14px) saturate(1.1);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   border: 1px solid var(--ag-line);
