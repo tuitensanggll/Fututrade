@@ -294,8 +294,6 @@
   
   .signal-badge{ flex-shrink:0; font-size:10.5px; font-weight:700; padding:4px 9px; border-radius:6px; font-family:'JetBrains Mono', monospace; margin-top:1px; display:inline-flex; align-items:center; gap:4px; }
   .signal-badge.warn{ background:var(--gold-dim); color:var(--gold); } .signal-badge.up{ background:var(--up-dim); color:var(--up); } .signal-badge.down{ background:var(--down-dim); color:var(--down); }
-  .wyckoff-bias{ display:inline-block; padding:3px 9px; border-radius:5px; font-weight:700; font-size:10.5px; font-family:'JetBrains Mono', monospace; margin-right:7px; letter-spacing:.3px; }
-  .wyckoff-bias.accum{ background:var(--up-dim); color:var(--up); } .wyckoff-bias.dist{ background:var(--down-dim); color:var(--down); }
   .signal-meta{ display:flex; gap:10px; align-items:baseline; }
   .signal-time{ font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono', monospace; }
   .signal-price{ font-size:12px; font-weight:600; font-family:'JetBrains Mono', monospace; }
