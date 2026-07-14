@@ -45,14 +45,6 @@
   let currentUpColor = localStorage.getItem('ok_upColor') || '#14cc8a';
   let currentDownColor = localStorage.getItem('ok_downColor') || '#ff4757';
   
-  // --- Wyckoff Method Engine: trạng thái bật/tắt, marker trên chart, đường Hỗ trợ/Kháng cự, nhật ký đã xóa ---
-  let wyckoffEnabled = localStorage.getItem('ok_wyckoff') !== 'false';
-  let aiMarkersGlobal = [];
-  let wyckoffMarkers = [];
-  let wyckoffPriceLines = [];
-  let wyckoffIgnoreBeforeTime = parseFloat(localStorage.getItem('ok_wyckoff_ignore_time')) || 0;
-  let deletedWyckoffLogTimes = new Set(JSON.parse(localStorage.getItem('ok_wyckoff_deleted_logs') || '[]'));
-
   let whaleLogs = JSON.parse(localStorage.getItem('ok_whale_logs') || '[]');
 
   let whaleLarge = parseFloat(localStorage.getItem('ok_whale_large')) || 500000;
@@ -492,7 +484,6 @@
   document.getElementById('symbol-input').value = currentSymbol.replace('USDT', '');
   document.getElementById('color-up').value = currentUpColor; document.getElementById('color-down').value = currentDownColor;
   if (!aiEnabled) document.getElementById('ai-switch').classList.remove('on');
-  if (!wyckoffEnabled) { const wSwitch = document.getElementById('wyckoff-switch'); if (wSwitch) wSwitch.classList.remove('on'); }
   document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.getAttribute('data-symbol') === currentSymbol.replace('USDT', '')));
   document.querySelectorAll('.tf-btn').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-interval') === currentInterval));
 
@@ -883,7 +874,8 @@
     const lineStyle = LINE_STYLE_MAP[ind.style] ?? 0;
     // lastValueVisible: false — tránh chồng ô giá trị lên trục phải khi nhiều đường (EMA/RSI...) có giá trị gần nhau.
     // Giá trị hiện tại của từng chỉ báo được hiển thị trong legend góc trái (giống Binance/TradingView), không phải trên trục.
-    const mkLine = (color, width, extra) => chart.addSeries(LightweightCharts.LineSeries, Object.assign({ color, lineWidth: width, lineStyle, priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: true, visible: ind.visible }, extra || {}));
+    // crosshairMarkerVisible: false — loại bỏ toàn bộ dấu chấm hiện ra khi rê chuột trên các đường chỉ báo (EMA/RSI/MACD/Stoch...)
+    const mkLine = (color, width, extra) => chart.addSeries(LightweightCharts.LineSeries, Object.assign({ color, lineWidth: width, lineStyle, priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, visible: ind.visible }, extra || {}));
     let series = []; const guides = [];
     if (ind.type === 'sma' || ind.type === 'ema' || ind.type === 'volma') {
       series = [mkLine(ind.color, ind.width)];
@@ -1837,6 +1829,7 @@
         if (sigList && sigList.length) {
            sigList.forEach(signal => {
              html += `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed ${signal.color};">`;
+             html += `<div style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; color:#0a0d13; background:${signal.color}; padding:1px 6px; border-radius:4px; margin-bottom:4px;">${signalCategoryLabel(signal)}</div>`;
              html += `<div style="color:${signal.color}; font-weight:bold; font-size: 13px; display:flex; align-items:center;">${icon(signalIconName(signal), 'ico-inline')}${signal.label}</div>`;
              html += `<div style="color:#a9b1c2; font-size:11.5px; margin-top:4px; max-width: 240px; white-space: normal; line-height: 1.45; font-family:'JetBrains Mono', monospace;">`;
              if (signal.entry) {
@@ -1940,319 +1933,13 @@
     }
   }
 
-  // =========================================================
-  // ĐỘNG CƠ PHÂN TÍCH WYCKOFF — Tích Lũy (Accumulation) / Phân Phối (Distribution)
-  // Dựa theo Wyckoff Power Charting (Bruce Fraser): Composite Operator (CO),
-  // Trading Range (TR): Stopping Action (SC/BC → AR → ST) → Test (Spring/Upthrust)
-  // → Xác nhận (SOS/SOW) → Điểm vào lệnh cuối (LPS/LPSY) → Markup/Markdown.
-  // Mục tiêu lợi nhuận tính theo nguyên lý Cause & Effect (chiếu chiều rộng TR từ điểm breakout),
-  // không dùng R:R cố định — đúng bản chất phương pháp Wyckoff (Point & Figure count).
-  // =========================================================
-
-  function clearWyckoffPriceLines() {
-    wyckoffPriceLines.forEach(l => { try { candleSeries.removePriceLine(l); } catch (e) {} });
-    wyckoffPriceLines = [];
-  }
-
-  // Gộp marker của AI Thuận Xu Hướng + Wyckoff vào chung 1 lớp marker trên biểu đồ nến
-  function renderAllMarkers() {
-    const combined = aiMarkersGlobal.concat(wyckoffMarkers).sort((a, b) => a.time - b.time);
-    candleSeriesMarkers.setMarkers(combined);
-  }
-
-  // Hồi quy tuyến tính đơn giản (độ dốc tương đối %/nến) — xác nhận có xu hướng thật trước Climax
-  function wyckoffSlope(values) {
-    const n = values.length; if (n < 2) return 0;
-    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-    for (let i = 0; i < n; i++) { sumX += i; sumY += values[i]; sumXY += i * values[i]; sumXX += i * i; }
-    const denom = n * sumXX - sumX * sumX; if (denom === 0) return 0;
-    const slope = (n * sumXY - sumX * sumY) / denom;
-    const avg = sumY / n; return avg !== 0 ? slope / avg : 0;
-  }
-
-  function wyckoffLastOfType(R, type) {
-    for (let k = R.events.length - 1; k >= 0; k--) if (R.events[k].type === type) return R.events[k];
-    return null;
-  }
-
-  function wyckoffEventToMarker(e) {
-    const shapeMap = { SC: 'arrowUp', BC: 'arrowDown', AR: 'circle', ST: 'circle', SPRING: 'arrowUp', UTAD: 'arrowDown', SOS: 'arrowUp', SOW: 'arrowDown', LPS: 'arrowUp', LPSY: 'arrowDown', BUY_SIGNAL: 'arrowUp', SELL_SIGNAL: 'arrowDown', FAIL: 'square' };
-    const posMap = { SC: 'belowBar', BC: 'aboveBar', AR: 'aboveBar', ST: 'belowBar', SPRING: 'belowBar', UTAD: 'aboveBar', SOS: 'belowBar', SOW: 'aboveBar', LPS: 'belowBar', LPSY: 'aboveBar', BUY_SIGNAL: 'belowBar', SELL_SIGNAL: 'aboveBar', FAIL: 'aboveBar' };
-    const colorMap = { SC: '#3d8bff', BC: '#ff9f43', AR: '#8b93a7', ST: '#c9a8ff', SPRING: '#14cc8a', UTAD: '#ff4757', SOS: '#14cc8a', SOW: '#ff4757', LPS: '#00e5a0', LPSY: '#ff2d55', BUY_SIGNAL: '#14cc8a', SELL_SIGNAL: '#ff4757', FAIL: '#ffc93c' };
-    const textMap = { SC: 'SC', BC: 'BC', AR: 'AR', ST: 'ST', SPRING: 'SPR', UTAD: 'UT', SOS: 'SOS', SOW: 'SOW', LPS: 'LPS', LPSY: 'LPSY', BUY_SIGNAL: 'MUA', SELL_SIGNAL: 'BÁN', FAIL: '!' };
-    return { time: e.time, position: posMap[e.type] || 'aboveBar', color: colorMap[e.type] || '#8b93a7', shape: shapeMap[e.type] || 'circle', text: textMap[e.type] || '' };
-  }
-
-  function wyckoffPhaseInfo(R) {
-    if (!R) return null;
-    const dirLabel = R.type === 'accum' ? 'TÍCH LŨY (Accumulation)' : 'PHÂN PHỐI (Distribution)';
-    const dirClass = R.type === 'accum' ? 'accum' : 'dist';
-    let phase = 'A · Dừng xu hướng (Stopping Action)';
-    if (wyckoffLastOfType(R, 'AR')) phase = 'B · Xây dựng nguyên nhân (Building the Cause)';
-    if (wyckoffLastOfType(R, 'SPRING') || wyckoffLastOfType(R, 'UTAD')) phase = 'C · Kiểm tra (Test — Spring/Upthrust)';
-    if (wyckoffLastOfType(R, 'SOS') || wyckoffLastOfType(R, 'SOW')) phase = 'D · Xác nhận (SOS/SOW)';
-    if (wyckoffLastOfType(R, 'LPS') || wyckoffLastOfType(R, 'LPSY')) phase = 'E · Markup/Markdown bắt đầu';
-    return { dirLabel, dirClass, phase };
-  }
-
-  // Bộ máy trạng thái chính — quét toàn bộ lịch sử nến để nhận diện các Trading Range Wyckoff
-  // Trạng thái: SEARCH (tìm Climax) -> WAIT_AR (chờ Automatic Rally/Reaction) -> IN_RANGE (Phase B, theo dõi ST)
-  // -> PHASE_C (đã có Spring/Upthrust) -> PHASE_D (đã có SOS/SOW, chờ LPS/LPSY để vào lệnh)
-  function detectWyckoffStructures(candles, vols) {
-    const n = candles.length;
-    const result = { events: [], ranges: [], active: null };
-    if (n < 60) return result;
-
-    const closes = candles.map(c => c.close);
-    const volSma = computeSMA(vols, 30);
-    const atr = computeATR(candles, 14);
-
-    const CLIMAX_VOL_MULT = 1.8;      // Khối lượng Climax phải >= 1.8x trung bình 30 nến
-    const TREND_LOOKBACK = 12;        // Số nến nhìn lại để xác nhận có xu hướng trước Climax
-    const TREND_THRESHOLD = 0.0025;   // Độ dốc tối thiểu (~0.25%/nến) để coi là có xu hướng thật
-    const AR_SEARCH_BARS = 35;        // Số nến tối đa chờ Automatic Rally/Reaction hình thành
-    const RANGE_TIMEOUT_BARS = 130;   // Nếu TR kéo dài quá lâu mà không hoàn tất -> huỷ, tìm range mới
-    const LPS_SEARCH_BARS = 45;       // Số nến tối đa chờ LPS/LPSY sau khi có SOS/SOW
-
-    let state = 'SEARCH';
-    let R = null;
-    const ranges = [];
-
-    // Dung sai thích ứng theo biến động thực tế (ATR/giá) — thay vì % cố định, để hoạt động tốt trên mọi coin/khung giờ
-    function tolOf(i, c) { return Math.max(0.0035, (atr[i] / c.close) * 0.55); }
-    function reset() { state = 'SEARCH'; R = null; }
-    function finalize(status) { if (R) { R.resultStatus = status; R.active = false; ranges.push(R); } reset(); }
-
-    for (let i = TREND_LOOKBACK + 5; i < n; i++) {
-      const c = candles[i]; const v = vols[i];
-      const avgVol = volSma[i] || volSma[i - 1] || v;
-      const tol = tolOf(i, c);
-      const body = Math.abs(c.close - c.open);
-      const upperWick = c.high - Math.max(c.open, c.close);
-      const lowerWick = Math.min(c.open, c.close) - c.low;
-      const isVolClimax = avgVol > 0 && v > avgVol * CLIMAX_VOL_MULT;
-
-      if (state === 'SEARCH') {
-        const priorSlope = wyckoffSlope(closes.slice(i - TREND_LOOKBACK, i));
-        // Selling Climax: sau downtrend rõ rệt, volume bùng nổ, bấc dưới dài hoặc đóng cửa hồi phục — cung bị hấp thụ
-        if (isVolClimax && priorSlope < -TREND_THRESHOLD && (lowerWick > body * 0.8 || c.close > c.open)) {
-          R = { type: 'accum', scIdx: i, support: c.low, resistance: -Infinity, events: [], active: true };
-          const ev = { idx: i, time: c.time, type: 'SC', label: 'SC — Cao Trào Bán', price: c.low, tone: 'down', desc: `Khối lượng bùng nổ x${(v / avgVol).toFixed(1)} lần TB sau một nhịp giảm rõ rệt — dấu hiệu Composite Operator bắt đầu hấp thụ nguồn cung giá rẻ.` };
-          result.events.push(ev); R.events.push(ev); state = 'WAIT_AR';
-        }
-        // Buying Climax: sau uptrend rõ rệt, volume bùng nổ, bấc trên dài hoặc đóng cửa đảo chiều giảm — cầu bị hấp thụ
-        else if (isVolClimax && priorSlope > TREND_THRESHOLD && (upperWick > body * 0.8 || c.close < c.open)) {
-          R = { type: 'dist', bcIdx: i, resistance: c.high, support: Infinity, events: [], active: true };
-          const ev = { idx: i, time: c.time, type: 'BC', label: 'BC — Cao Trào Mua', price: c.high, tone: 'up', desc: `Khối lượng bùng nổ x${(v / avgVol).toFixed(1)} lần TB sau một nhịp tăng nóng — dấu hiệu Composite Operator bắt đầu phân phối hàng ở vùng giá cao.` };
-          result.events.push(ev); R.events.push(ev); state = 'WAIT_AR';
-        }
-      }
-
-      else if (state === 'WAIT_AR') {
-        const climaxIdx = R.type === 'accum' ? R.scIdx : R.bcIdx;
-        const barsSince = i - climaxIdx;
-        if (barsSince >= 4) {
-          if (R.type === 'accum') {
-            const segment = candles.slice(climaxIdx + 1, i + 1);
-            let peakIdx = climaxIdx + 1, peakVal = -Infinity;
-            segment.forEach((cc, off) => { if (cc.high > peakVal) { peakVal = cc.high; peakIdx = climaxIdx + 1 + off; } });
-            if (i - peakIdx >= 3 && c.close < peakVal * (1 - tol * 0.3)) {
-              R.resistance = peakVal;
-              const ev = { idx: peakIdx, time: candles[peakIdx].time, type: 'AR', label: 'AR — Phục Hồi Tự Động', price: peakVal, tone: 'up', desc: 'Lực cầu đẩy giá hồi phục mạnh ngay sau Cao trào Bán — xác nhận vùng đáy tạm thời và thiết lập biên trên của Trading Range.' };
-              result.events.push(ev); R.events.push(ev); state = 'IN_RANGE';
-            }
-          } else {
-            const segment = candles.slice(climaxIdx + 1, i + 1);
-            let troughIdx = climaxIdx + 1, troughVal = Infinity;
-            segment.forEach((cc, off) => { if (cc.low < troughVal) { troughVal = cc.low; troughIdx = climaxIdx + 1 + off; } });
-            if (i - troughIdx >= 3 && c.close > troughVal * (1 + tol * 0.3)) {
-              R.support = troughVal;
-              const ev = { idx: troughIdx, time: candles[troughIdx].time, type: 'AR', label: 'AR — Phản Ứng Tự Động', price: troughVal, tone: 'down', desc: 'Lực cung đẩy giá giảm mạnh ngay sau Cao trào Mua — xác nhận vùng đỉnh tạm thời và thiết lập biên dưới của Trading Range.' };
-              result.events.push(ev); R.events.push(ev); state = 'IN_RANGE';
-            }
-          }
-        }
-        if (barsSince > AR_SEARCH_BARS) reset(); // Không hình thành AR trong thời hạn -> climax giả, huỷ
-      }
-
-      else { // IN_RANGE / PHASE_C / PHASE_D — cùng theo dõi trên 1 Trading Range đang xây dựng
-        const climaxIdx = R.type === 'accum' ? R.scIdx : R.bcIdx;
-        if (i - climaxIdx > RANGE_TIMEOUT_BARS) { finalize('timeout'); continue; }
-        const rangeWidth = R.resistance - R.support;
-        if (!isFinite(rangeWidth) || rangeWidth <= 0) { reset(); continue; }
-
-        if (R.type === 'accum') {
-          // Secondary Test: test lại Hỗ trợ với khối lượng thấp hơn Climax -> cung cạn dần
-          const nearSupport = c.low <= R.support * (1 + tol) && c.low >= R.support * (1 - tol * 5);
-          const lastST = wyckoffLastOfType(R, 'ST');
-          if (state === 'IN_RANGE' && nearSupport && c.close > R.support && v < avgVol * 1.3 && (i - climaxIdx) > 4 && (!lastST || i - lastST.idx > 4)) {
-            const ev = { idx: i, time: c.time, type: 'ST', label: 'ST — Kiểm Tra Thứ Cấp', price: c.low, tone: 'warn', desc: 'Giá quay lại kiểm tra vùng Hỗ trợ với khối lượng thấp hơn Cao trào Bán — nguồn cung đang cạn dần, tín hiệu tích cực cho phe mua.' };
-            result.events.push(ev); R.events.push(ev);
-          }
-          // Spring: xuyên phá Hỗ trợ để hất văng cắt lỗ rồi đóng cửa quay lại trong Range
-          const lastSpring = wyckoffLastOfType(R, 'SPRING');
-          if (c.low < R.support * (1 - tol) && c.close > R.support && (!lastSpring || i - lastSpring.idx > 5)) {
-            const ratio = v / avgVol;
-            const grade = ratio < 1.2 ? 'Spring #3 (Vol thấp — tín hiệu mua rất mạnh)' : ratio < 2 ? 'Spring #2 (Vol vừa — cần theo dõi thêm)' : 'Spring #1 / Shakeout (Vol cao — cần chờ SOS xác nhận)';
-            const ev = { idx: i, time: c.time, type: 'SPRING', label: 'SPRING — ' + grade, price: c.low, tone: 'up', desc: `Giá xuyên phá đáy Trading Range để "hất văng" lệnh cắt lỗ (khối lượng x${ratio.toFixed(1)} TB) rồi đóng cửa quay lại bên trong Range — dấu hiệu Composite Operator hấp thụ nốt nguồn cung còn sót. Mở ra Phase C.` };
-            result.events.push(ev); R.events.push(ev); R.springIdx = i; R.springLow = c.low; state = 'PHASE_C';
-          }
-          // SOS: bứt phá dứt khoát khỏi Kháng cự kèm volume lớn -> xác nhận Phase D
-          const lastSOS = wyckoffLastOfType(R, 'SOS');
-          if (c.close > R.resistance * (1 + tol * 0.5) && v > avgVol * 1.4 && c.close > c.open && (!lastSOS || i - lastSOS.idx > 8)) {
-            const ev = { idx: i, time: c.time, type: 'SOS', label: 'SOS — Dấu Hiệu Sức Mạnh', price: c.close, tone: 'up', desc: `Bứt phá dứt khoát khỏi Kháng cự với khối lượng x${(v / avgVol).toFixed(1)} TB — bên mua áp đảo hoàn toàn, xác nhận Phase D và chuẩn bị bước vào Markup.` };
-            result.events.push(ev); R.events.push(ev); R.sosIdx = i; state = 'PHASE_D'; R.pullbackLow = null; R.lpsFound = false;
-          }
-          // LPS: nhịp hồi test lại Kháng cự cũ (nay là Hỗ trợ) với volume giảm dần -> điểm MUA
-          if (state === 'PHASE_D' && !R.lpsFound) {
-            if (c.close < R.support * (1 - tol)) { finalize('failed'); continue; } // giá rơi lại dưới Support gốc -> range thất bại
-            if (R.pullbackLow == null || c.low < R.pullbackLow) { R.pullbackLow = c.low; R.pullbackIdx = i; R.pullbackVol = v; }
-            const barsSinceLow = R.pullbackIdx != null ? i - R.pullbackIdx : 0;
-            if (R.pullbackIdx > R.sosIdx && barsSinceLow >= 2 && c.close > candles[R.pullbackIdx].high) {
-              const supplyGone = R.pullbackVol < avgVol;
-              const evLps = { idx: R.pullbackIdx, time: candles[R.pullbackIdx].time, type: 'LPS', label: 'LPS — Điểm Hỗ Trợ Cuối Cùng', price: R.pullbackLow, tone: 'up', desc: `Nhịp hồi test lại Kháng cự cũ (nay đã trở thành Hỗ trợ) với khối lượng ${supplyGone ? 'suy giảm rõ rệt — nguồn cung đã cạn' : 'còn cao — nên chờ thêm xác nhận'}. Đây là điểm MUA lý tưởng theo Wyckoff trước khi bước vào Markup.` };
-              result.events.push(evLps); R.events.push(evLps); R.lpsFound = true;
-              const entry = c.close;
-              const stop = Math.min(R.springLow ?? R.support, R.pullbackLow) * (1 - tol * 0.4);
-              const target1 = R.resistance + rangeWidth * 0.5;
-              const target2 = R.resistance + rangeWidth; // Cause & Effect: chiếu chiều rộng TR từ điểm breakout
-              const evBuy = { idx: i, time: c.time, type: 'BUY_SIGNAL', label: 'MUA — Wyckoff LPS', price: entry, tone: 'up', entry, stop, target: target2, target1, desc: `Cấu trúc Tích Lũy hoàn tất: SC → AR → ST → ${R.springIdx ? 'Spring → ' : ''}SOS → LPS. Vào LONG quanh vùng LPS, SL dưới đáy ${R.springIdx ? 'Spring' : 'Support'}, chốt lời theo nguyên lý Cause & Effect (chiều rộng Trading Range chiếu từ điểm breakout).` };
-              result.events.push(evBuy); R.events.push(evBuy);
-              finalize('completed');
-            } else if (barsSinceLow > LPS_SEARCH_BARS) { finalize('sos_only'); }
-          }
-        } else {
-          // Secondary Test: test lại Kháng cự với khối lượng thấp hơn Climax -> cầu suy yếu dần
-          const nearRes = c.high >= R.resistance * (1 - tol) && c.high <= R.resistance * (1 + tol * 5);
-          const lastST = wyckoffLastOfType(R, 'ST');
-          if (state === 'IN_RANGE' && nearRes && c.close < R.resistance && v < avgVol * 1.3 && (i - climaxIdx) > 4 && (!lastST || i - lastST.idx > 4)) {
-            const ev = { idx: i, time: c.time, type: 'ST', label: 'ST — Kiểm Tra Thứ Cấp', price: c.high, tone: 'warn', desc: 'Giá quay lại kiểm tra vùng Kháng cự với khối lượng thấp hơn Cao trào Mua — lực cầu đang suy yếu, tín hiệu tiêu cực cho phe mua.' };
-            result.events.push(ev); R.events.push(ev);
-          }
-          // Upthrust/UTAD: xuyên phá Kháng cự để hút lệnh mua đuổi rồi đóng cửa yếu trở lại trong Range
-          const lastUt = wyckoffLastOfType(R, 'UTAD');
-          if (c.high > R.resistance * (1 + tol) && c.close < R.resistance && (!lastUt || i - lastUt.idx > 5)) {
-            const ratio = v / avgVol;
-            const ev = { idx: i, time: c.time, type: 'UTAD', label: 'UPTHRUST — UT/UTAD', price: c.high, tone: 'down', desc: `Giá xuyên phá đỉnh Trading Range để hút lệnh mua đuổi (khối lượng x${ratio.toFixed(1)} TB) rồi đóng cửa yếu trở lại bên trong Range — dấu hiệu Composite Operator phân phối nốt hàng còn lại. Mở ra Phase C.` };
-            result.events.push(ev); R.events.push(ev); R.utIdx = i; R.utHigh = c.high; state = 'PHASE_C';
-          }
-          // SOW: gãy dứt khoát khỏi Hỗ trợ kèm volume lớn -> xác nhận Phase D
-          const lastSOW = wyckoffLastOfType(R, 'SOW');
-          if (c.close < R.support * (1 - tol * 0.5) && v > avgVol * 1.4 && c.close < c.open && (!lastSOW || i - lastSOW.idx > 8)) {
-            const ev = { idx: i, time: c.time, type: 'SOW', label: 'SOW — Dấu Hiệu Suy Yếu', price: c.close, tone: 'down', desc: `Gãy dứt khoát khỏi Hỗ trợ với khối lượng x${(v / avgVol).toFixed(1)} TB — bên bán áp đảo hoàn toàn, xác nhận Phase D và chuẩn bị bước vào Markdown.` };
-            result.events.push(ev); R.events.push(ev); R.sowIdx = i; state = 'PHASE_D'; R.pullbackHigh = null; R.lpsFound = false;
-          }
-          // LPSY: nhịp hồi test lại Hỗ trợ cũ (nay là Kháng cự) với volume giảm dần -> điểm BÁN/SHORT
-          if (state === 'PHASE_D' && !R.lpsFound) {
-            if (c.close > R.resistance * (1 + tol)) { finalize('failed'); continue; }
-            if (R.pullbackHigh == null || c.high > R.pullbackHigh) { R.pullbackHigh = c.high; R.pullbackIdx = i; R.pullbackVol = v; }
-            const barsSinceHigh = R.pullbackIdx != null ? i - R.pullbackIdx : 0;
-            if (R.pullbackIdx > R.sowIdx && barsSinceHigh >= 2 && c.close < candles[R.pullbackIdx].low) {
-              const demandGone = R.pullbackVol < avgVol;
-              const evLpsy = { idx: R.pullbackIdx, time: candles[R.pullbackIdx].time, type: 'LPSY', label: 'LPSY — Điểm Kháng Cự Cuối Cùng', price: R.pullbackHigh, tone: 'down', desc: `Nhịp hồi test lại Hỗ trợ cũ (nay đã trở thành Kháng cự) với khối lượng ${demandGone ? 'suy giảm rõ rệt — lực cầu đã cạn' : 'còn cao — nên chờ thêm xác nhận'}. Đây là điểm BÁN/SHORT lý tưởng theo Wyckoff trước khi bước vào Markdown.` };
-              result.events.push(evLpsy); R.events.push(evLpsy); R.lpsFound = true;
-              const entry = c.close;
-              const stop = Math.max(R.utHigh ?? R.resistance, R.pullbackHigh) * (1 + tol * 0.4);
-              const target1 = R.support - rangeWidth * 0.5;
-              const target2 = R.support - rangeWidth;
-              const evSell = { idx: i, time: c.time, type: 'SELL_SIGNAL', label: 'BÁN — Wyckoff LPSY', price: entry, tone: 'down', entry, stop, target: target2, target1, desc: `Cấu trúc Phân Phối hoàn tất: BC → AR → ST → ${R.utIdx ? 'UTAD → ' : ''}SOW → LPSY. Vào SHORT quanh vùng LPSY, SL trên đỉnh ${R.utIdx ? 'UTAD' : 'Resistance'}, chốt lời theo nguyên lý Cause & Effect (chiều rộng Trading Range chiếu từ điểm breakdown).` };
-              result.events.push(evSell); R.events.push(evSell);
-              finalize('completed');
-            } else if (barsSinceHigh > LPS_SEARCH_BARS) { finalize('sow_only'); }
-          }
-        }
-      }
-    }
-
-    if (R) { R.active = true; ranges.push(R); }
-    result.ranges = ranges;
-    result.active = ranges.length ? ranges[ranges.length - 1] : null;
-    return result;
-  }
-
-  function runWyckoffAnalysis() {
-    const listEl = document.getElementById('wyckoff-signal-list');
-    const statusEl = document.getElementById('wyckoff-status');
-    clearWyckoffPriceLines();
-
-    if (!wyckoffEnabled) {
-      wyckoffMarkers = []; renderAllMarkers();
-      if (listEl) listEl.innerHTML = '<div class="ai-empty">Wyckoff đang tắt. Bật công tắc để phân tích.</div>';
-      if (statusEl) statusEl.innerHTML = '';
-      return;
-    }
-    if (candlesData.length < 80) {
-      if (listEl) listEl.innerHTML = '<div class="ai-empty">Đang chờ đủ dữ liệu lịch sử để phân tích cấu trúc Wyckoff...</div>';
-      return;
-    }
-
-    const vols = volumesData.map(v => v.value);
-    const structure = detectWyckoffStructures(candlesData, vols);
-    const focusRange = structure.active;
-
-    if (focusRange && isFinite(focusRange.support) && isFinite(focusRange.resistance)) {
-      const supLine = candleSeries.createPriceLine({ price: focusRange.support, color: '#3d8bff', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Wyckoff Hỗ trợ' });
-      const resLine = candleSeries.createPriceLine({ price: focusRange.resistance, color: '#ff9f43', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'Wyckoff Kháng cự' });
-      wyckoffPriceLines.push(supLine, resLine);
-    }
-
-    const visibleEvents = structure.events.filter(e => e.time >= wyckoffIgnoreBeforeTime && !deletedWyckoffLogTimes.has(e.time)).sort((a, b) => a.idx - b.idx);
-    const recentEvents = visibleEvents.slice(-60);
-    wyckoffMarkers = recentEvents.map(wyckoffEventToMarker);
-    renderAllMarkers();
-
-    if (statusEl) {
-      if (focusRange) {
-        const info = wyckoffPhaseInfo(focusRange);
-        statusEl.innerHTML = `<span class="wyckoff-bias ${info.dirClass}">${info.dirLabel}</span> Phase ${info.phase}`;
-      } else {
-        statusEl.innerHTML = 'Chưa phát hiện Trading Range rõ ràng trong dữ liệu hiện có.';
-      }
-    }
-
-    if (listEl) {
-      listEl.innerHTML = '';
-      if (recentEvents.length === 0) { listEl.innerHTML = '<div class="ai-empty">Chưa phát hiện sự kiện Wyckoff nào. Hệ thống sẽ tự cập nhật khi có cấu trúc mới.</div>'; return; }
-      recentEvents.slice(-15).reverse().forEach(e => {
-        const row = document.createElement('div'); row.className = 'signal-row';
-        const isTrade = e.type === 'BUY_SIGNAL' || e.type === 'SELL_SIGNAL';
-        const tradeHtml = isTrade ? `<div class="signal-desc" style="margin-top:5px; font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600;"><span style="color:var(--up)">Entry: ${fmt(e.entry)}</span> | <span style="color:var(--gold)">TP1: ${fmt(e.target1)}</span> | <span style="color:var(--gold)">TP2: ${fmt(e.target)}</span> | <span style="color:var(--down)">SL: ${fmt(e.stop)}</span></div>` : '';
-        row.innerHTML = `<div style="display:flex; flex:1; padding-right: 10px;"><div class="signal-badge ${e.tone}">${e.label}</div><div class="signal-body" style="flex:1;"><div class="signal-meta"><span class="signal-time">${fmtTime(e.time)}</span><span class="signal-price" style="font-weight:700;">${fmt(e.price)} USDT</span></div>${tradeHtml}<div class="signal-desc" style="color:var(--text-dim); font-size:11.5px; margin-top:3px;">${e.desc}</div></div></div><div style="display:flex; align-items:center;"><button class="btn-delete-item" onclick="deleteWyckoffLog(${e.time})" title="Xóa">${icon('x')}</button></div>`;
-        listEl.appendChild(row);
-      });
-    }
-  }
-
-  window.deleteWyckoffLog = function (time) {
-    try {
-      deletedWyckoffLogTimes.add(time);
-      localStorage.setItem('ok_wyckoff_deleted_logs', JSON.stringify(Array.from(deletedWyckoffLogTimes)));
-      if (typeof runAIAnalysis === 'function') runAIAnalysis();
-    } catch (e) {}
-  };
-
-  window.clearWyckoffLogs = function () {
-    try {
-      if (candlesData && candlesData.length > 1) {
-        wyckoffIgnoreBeforeTime = candlesData[candlesData.length - 1].time;
-        localStorage.setItem('ok_wyckoff_ignore_time', wyckoffIgnoreBeforeTime);
-        deletedWyckoffLogTimes.clear();
-        localStorage.setItem('ok_wyckoff_deleted_logs', '[]');
-      }
-      const listEl = document.getElementById('wyckoff-signal-list');
-      if (listEl) listEl.innerHTML = '<div class="ai-empty">Đã dọn dẹp. Đang chờ sự kiện Wyckoff mới...</div>';
-      if (typeof runAIAnalysis === 'function') runAIAnalysis();
-    } catch (e) {}
-  };
-
   function runAIAnalysis(){
     updateAllIndicators();
     const liveStatusEl = document.getElementById('ai-live-status');
     if (liveStatusEl) liveStatusEl.innerHTML = isLiveSignalPreview ? '<span class="live-dot" style="display:inline-block; margin-right:4px; vertical-align:middle;"></span>LIVE · nến chưa đóng, tín hiệu có thể đổi' : icon('checkCircle', 'ico-inline') + ' Đã xác nhận nến đóng';
     runTrendAnalysis(); signalsMap.clear();
-    runWyckoffAnalysis(); // Phân tích Wyckoff chạy độc lập với công tắc AI Thuận Xu Hướng
     const aiList = document.getElementById('ai-signal-list');
-    if(!aiEnabled){ aiMarkersGlobal = []; renderAllMarkers(); aiList.innerHTML='<div class="ai-empty">AI Đang tắt. Bật công tắc để phân tích.</div>'; return;}
+    if(!aiEnabled){ candleSeriesMarkers.setMarkers([]); aiList.innerHTML='<div class="ai-empty">AI Đang tắt. Bật công tắc để phân tích.</div>'; return;}
     if(candlesData.length < 200) { aiList.innerHTML='<div class="ai-empty">Vui lòng chờ tải đủ 200 nến dữ liệu lịch sử...</div>'; return; }
     
     const closes = candlesData.map(c => c.close);
@@ -2275,6 +1962,11 @@
       if (s.type === 'climax_buy' || s.type === 'climax_sell') return 'alertTriangle';
       if (s.type === 'fng_block') return 'shield';
       return 'target';
+    }
+    // Phân loại chú thích: AI TÍN HIỆU (khuyến nghị vào lệnh / lọc lệnh theo tâm lý) vs WYCKOFF (climax & volume bất thường)
+    function signalCategoryLabel(s) {
+      if (s.type === 'climax_buy' || s.type === 'climax_sell' || s.type === 'vol_spike') return 'WYCKOFF';
+      return 'AI TÍN HIỆU';
     }
     let lastLongIdx = -9999, lastShortIdx = -9999; const cooldownBars = 10;
     
@@ -2345,19 +2037,18 @@
     
     const visibleSignals = signals.filter(s => s.time >= aiIgnoreBeforeTime && !deletedLogTimes.has(s.time));
 
-    // Khôi phục Code Vẽ Dấu Chấm lên Biểu đồ
+    // Chú thích cho mỗi cây nến có sự kiện: LONG/SHORT (AI tín hiệu), B.CLX/S.CLX + VOL+/VOL- (Wyckoff), CHẶN (AI lọc lệnh theo tâm lý)
     const markers = [];
     visibleSignals.forEach(s => {
       if (s.type === 'trend_long') markers.push({ time: s.time, position: 'belowBar', color: s.color, shape: 'arrowUp', text: 'LONG' });
       else if (s.type === 'trend_short') markers.push({ time: s.time, position: 'aboveBar', color: s.color, shape: 'arrowDown', text: 'SHORT' });
-      else if (s.type === 'fng_block') markers.push({ time: s.time, position: 'aboveBar', color: s.color, shape: 'square', text: '' });
+      else if (s.type === 'fng_block') markers.push({ time: s.time, position: 'aboveBar', color: s.color, shape: 'square', text: 'CHẶN' });
       else if (s.type === 'climax_buy') markers.push({ time: s.time, position: 'aboveBar', color: '#ffc93c', shape: 'arrowDown', text: 'B.CLX' });
       else if (s.type === 'climax_sell') markers.push({ time: s.time, position: 'belowBar', color: '#ffc93c', shape: 'arrowUp', text: 'S.CLX' });
-      else if (s.type === 'vol_spike') markers.push({ time: s.time, position: (s.tone === 'up' ? 'belowBar' : 'aboveBar'), color: s.color, shape: 'circle', text: '' }); // Dấu chấm hiển thị lại
+      else if (s.type === 'vol_spike') markers.push({ time: s.time, position: (s.tone === 'up' ? 'belowBar' : 'aboveBar'), color: s.color, shape: 'circle', text: (s.tone === 'up' ? 'VOL+' : 'VOL-') });
     });
     markers.sort((a,b) => a.time - b.time);
-    aiMarkersGlobal = markers;
-    renderAllMarkers();
+    candleSeriesMarkers.setMarkers(markers);
     
     aiList.innerHTML = '';
     if (visibleSignals.length === 0){ aiList.innerHTML = '<div class="ai-empty">Chưa có dữ liệu hoặc đã được dọn sạch sẽ...</div>'; return; }
@@ -2522,13 +2213,4 @@
     localStorage.setItem('ok_ai', aiEnabled);
     if (typeof runAIAnalysis === 'function') runAIAnalysis();
   });
-  const wyckoffSwitchEl = document.getElementById('wyckoff-switch');
-  if (wyckoffSwitchEl) {
-    wyckoffSwitchEl.addEventListener('click', function() {
-      wyckoffEnabled = !wyckoffEnabled;
-      this.classList.toggle('on', wyckoffEnabled);
-      localStorage.setItem('ok_wyckoff', wyckoffEnabled);
-      if (typeof runAIAnalysis === 'function') runAIAnalysis();
-    });
-  }
   updateChart();
