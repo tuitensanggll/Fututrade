@@ -507,3 +507,534 @@
 }
 .iti__country.iti__highlight { background-color: var(--surface-alt); }
 .iti__selected-dial-code { color: var(--text); }
+
+/* ============================================================
+   PIXEL-ART "BULL RUN" BACKGROUND — màn hình đăng nhập FUTU TRADE
+   Tên lửa 8-bit bay dọc theo xu hướng tăng, hướng về mặt trăng,
+   phía trên skyline dựng từ các cây nến (candlestick).
+   ============================================================ */
+
+.auth-overlay { overflow: hidden; }
+
+.auth-scene {
+  position: absolute; inset: 0;
+  z-index: 0; overflow: hidden;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+.auth-box { position: relative; z-index: 5; }
+
+/* --- Sao lấp lánh --- */
+.auth-stars, .auth-stars--far {
+  position: absolute; top: -60px; left: -60px;
+  width: 2px; height: 2px;
+  background: transparent;
+  box-shadow:
+    331px 154px #e7eaf0,
+    404px 666px #e7eaf0,
+    49px 74px #e7eaf0,
+    840px 548px #e7eaf0,
+    96px 374px #e7eaf0,
+    596px 59px #e7eaf0,
+    519px 219px #e7eaf0,
+    38px 88px #e7eaf0,
+    444px 428px #e7eaf0,
+    71px 246px #e7eaf0,
+    92px 564px #e7eaf0,
+    434px 60px #e7eaf0,
+    846px 579px #e7eaf0,
+    126px 228px #e7eaf0,
+    645px 642px #e7eaf0,
+    596px 63px #e7eaf0,
+    590px 599px #e7eaf0,
+    406px 50px #e7eaf0,
+    226px 47px #e7eaf0,
+    570px 879px #e7eaf0,
+    136px 296px #e7eaf0,
+    429px 147px #e7eaf0,
+    553px 120px #e7eaf0,
+    584px 315px #e7eaf0,
+    573px 835px #e7eaf0,
+    698px 185px #e7eaf0,
+    105px 595px #e7eaf0,
+    584px 654px #e7eaf0,
+    192px 381px #e7eaf0,
+    99px 560px #e7eaf0,
+    729px 64px #e7eaf0,
+    577px 61px #e7eaf0,
+    633px 210px #e7eaf0,
+    508px 696px #e7eaf0,
+    544px 437px #e7eaf0,
+    795px 321px #e7eaf0,
+    476px 599px #e7eaf0,
+    464px 370px #e7eaf0,
+    306px 254px #e7eaf0,
+    813px 184px #e7eaf0,
+    715px 798px #e7eaf0,
+    249px 83px #e7eaf0,
+    588px 307px #e7eaf0,
+    537px 506px #e7eaf0,
+    896px 351px #e7eaf0,
+    746px 459px #e7eaf0,
+    294px 623px #e7eaf0,
+    74px 120px #e7eaf0,
+    524px 428px #e7eaf0,
+    168px 775px #e7eaf0,
+    350px 155px #e7eaf0,
+    500px 431px #e7eaf0,
+    40px 684px #e7eaf0,
+    79px 782px #e7eaf0,
+    571px 586px #e7eaf0,
+    808px 896px #e7eaf0,
+    837px 321px #e7eaf0,
+    348px 711px #e7eaf0,
+    358px 608px #e7eaf0,
+    508px 593px #e7eaf0,
+    816px 467px #e7eaf0,
+    70px 860px #e7eaf0,
+    95px 276px #e7eaf0,
+    485px 713px #e7eaf0,
+    680px 66px #e7eaf0,
+    62px 748px #e7eaf0,
+    718px 317px #e7eaf0,
+    662px 591px #e7eaf0,
+    697px 841px #e7eaf0,
+    456px 291px #e7eaf0;
+  animation: auth-twinkle 3.2s ease-in-out infinite;
+}
+.auth-stars--far {
+  box-shadow:
+    413px 389px #e7eaf0,
+    204px 613px #e7eaf0,
+    183px 235px #e7eaf0,
+    254px 136px #e7eaf0,
+    778px 88px #e7eaf0,
+    257px 746px #e7eaf0,
+    392px 543px #e7eaf0,
+    700px 717px #e7eaf0,
+    551px 91px #e7eaf0,
+    638px 501px #e7eaf0,
+    204px 431px #e7eaf0,
+    739px 627px #e7eaf0,
+    602px 221px #e7eaf0,
+    811px 807px #e7eaf0,
+    382px 842px #e7eaf0,
+    397px 882px #e7eaf0,
+    698px 217px #e7eaf0,
+    155px 472px #e7eaf0,
+    676px 183px #e7eaf0,
+    870px 580px #e7eaf0,
+    346px 84px #e7eaf0,
+    733px 541px #e7eaf0,
+    693px 793px #e7eaf0,
+    89px 480px #e7eaf0,
+    323px 412px #e7eaf0,
+    43px 275px #e7eaf0,
+    571px 7px #e7eaf0,
+    435px 208px #e7eaf0,
+    371px 547px #e7eaf0,
+    82px 473px #e7eaf0,
+    531px 202px #e7eaf0,
+    620px 473px #e7eaf0,
+    52px 366px #e7eaf0,
+    132px 221px #e7eaf0,
+    732px 164px #e7eaf0,
+    765px 810px #e7eaf0,
+    452px 609px #e7eaf0,
+    181px 515px #e7eaf0,
+    676px 180px #e7eaf0,
+    37px 112px #e7eaf0,
+    23px 175px #e7eaf0,
+    485px 700px #e7eaf0,
+    839px 429px #e7eaf0,
+    83px 435px #e7eaf0,
+    647px 88px #e7eaf0;
+  opacity: .4;
+  animation-duration: 4.6s;
+  animation-delay: .9s;
+}
+@keyframes auth-twinkle {
+  0%, 100% { opacity: .35; }
+  50% { opacity: 1; }
+}
+
+/* --- Mặt trăng pixel --- */
+.auth-moon {
+  position: absolute;
+  top: 9%; right: 10%;
+  width: 56px; height: 56px;
+  background: transparent;
+  box-shadow:
+    24px 0px #ffc93c,
+    28px 0px #ffc93c,
+    12px 4px #ffc93c,
+    16px 4px #ffc93c,
+    20px 4px #ffc93c,
+    24px 4px #ffc93c,
+    28px 4px #ffc93c,
+    32px 4px #ffc93c,
+    36px 4px #ffc93c,
+    40px 4px #ffc93c,
+    8px 8px #ffc93c,
+    12px 8px #ffc93c,
+    16px 8px #ffc93c,
+    20px 8px #ffc93c,
+    24px 8px #ffc93c,
+    28px 8px #ffc93c,
+    32px 8px #ffc93c,
+    36px 8px #ffc93c,
+    40px 8px #ffc93c,
+    44px 8px #ffc93c,
+    4px 12px #ffc93c,
+    8px 12px #ffc93c,
+    12px 12px #ffc93c,
+    16px 12px #ffc93c,
+    20px 12px #ffc93c,
+    24px 12px #ffc93c,
+    28px 12px #ffc93c,
+    32px 12px #ffc93c,
+    36px 12px #d99f2b,
+    40px 12px #ffc93c,
+    44px 12px #ffc93c,
+    48px 12px #ffc93c,
+    4px 16px #ffc93c,
+    8px 16px #ffc93c,
+    12px 16px #ffc93c,
+    16px 16px #d99f2b,
+    20px 16px #ffc93c,
+    24px 16px #ffc93c,
+    28px 16px #ffc93c,
+    32px 16px #ffc93c,
+    36px 16px #ffc93c,
+    40px 16px #ffc93c,
+    44px 16px #ffc93c,
+    48px 16px #ffc93c,
+    4px 20px #ffc93c,
+    8px 20px #ffc93c,
+    12px 20px #ffc93c,
+    16px 20px #ffc93c,
+    20px 20px #ffc93c,
+    24px 20px #ffc93c,
+    28px 20px #ffc93c,
+    32px 20px #ffc93c,
+    36px 20px #ffc93c,
+    40px 20px #ffc93c,
+    44px 20px #ffc93c,
+    48px 20px #ffc93c,
+    0px 24px #ffc93c,
+    4px 24px #ffc93c,
+    8px 24px #ffc93c,
+    12px 24px #ffc93c,
+    16px 24px #ffc93c,
+    20px 24px #ffc93c,
+    24px 24px #ffc93c,
+    28px 24px #ffc93c,
+    32px 24px #ffc93c,
+    36px 24px #ffc93c,
+    40px 24px #ffc93c,
+    44px 24px #ffc93c,
+    48px 24px #ffc93c,
+    52px 24px #ffc93c,
+    0px 28px #ffc93c,
+    4px 28px #ffc93c,
+    8px 28px #ffc93c,
+    12px 28px #ffc93c,
+    16px 28px #ffc93c,
+    20px 28px #ffc93c,
+    24px 28px #ffc93c,
+    28px 28px #ffc93c,
+    32px 28px #ffc93c,
+    36px 28px #ffc93c,
+    40px 28px #ffc93c,
+    44px 28px #ffc93c,
+    48px 28px #ffc93c,
+    52px 28px #ffc93c,
+    4px 32px #ffc93c,
+    8px 32px #ffc93c,
+    12px 32px #ffc93c,
+    16px 32px #ffc93c,
+    20px 32px #ffc93c,
+    24px 32px #ffc93c,
+    28px 32px #ffc93c,
+    32px 32px #ffc93c,
+    36px 32px #ffc93c,
+    40px 32px #ffc93c,
+    44px 32px #ffc93c,
+    48px 32px #ffc93c,
+    4px 36px #ffc93c,
+    8px 36px #ffc93c,
+    12px 36px #ffc93c,
+    16px 36px #ffc93c,
+    20px 36px #ffc93c,
+    24px 36px #d99f2b,
+    28px 36px #ffc93c,
+    32px 36px #ffc93c,
+    36px 36px #ffc93c,
+    40px 36px #ffc93c,
+    44px 36px #ffc93c,
+    48px 36px #ffc93c,
+    4px 40px #ffc93c,
+    8px 40px #ffc93c,
+    12px 40px #ffc93c,
+    16px 40px #ffc93c,
+    20px 40px #ffc93c,
+    24px 40px #ffc93c,
+    28px 40px #ffc93c,
+    32px 40px #ffc93c,
+    36px 40px #ffc93c,
+    40px 40px #d99f2b,
+    44px 40px #ffc93c,
+    48px 40px #ffc93c,
+    8px 44px #ffc93c,
+    12px 44px #ffc93c,
+    16px 44px #ffc93c,
+    20px 44px #ffc93c,
+    24px 44px #ffc93c,
+    28px 44px #ffc93c,
+    32px 44px #ffc93c,
+    36px 44px #ffc93c,
+    40px 44px #ffc93c,
+    44px 44px #ffc93c,
+    12px 48px #ffc93c,
+    16px 48px #ffc93c,
+    20px 48px #ffc93c,
+    24px 48px #ffc93c,
+    28px 48px #ffc93c,
+    32px 48px #ffc93c,
+    36px 48px #ffc93c,
+    40px 48px #ffc93c,
+    24px 52px #ffc93c,
+    28px 52px #ffc93c;
+  animation: auth-moon-glow 5s ease-in-out infinite;
+}
+@keyframes auth-moon-glow {
+  0%, 100% { filter: drop-shadow(0 0 14px rgba(255,201,60,.35)); }
+  50% { filter: drop-shadow(0 0 26px rgba(255,201,60,.65)); }
+}
+
+/* --- Đường xu hướng tăng (đường bay của tên lửa) --- */
+.auth-trail {
+  position: absolute;
+  left: 4%; bottom: 10%;
+  width: 2px; height: 78%;
+  background: repeating-linear-gradient(
+    to top,
+    rgba(255,201,60,.4) 0 6px,
+    transparent 6px 14px
+  );
+  transform-origin: bottom left;
+  transform: rotate(52deg);
+}
+
+/* --- Tên lửa pixel bay --- */
+.auth-rocket {
+  position: absolute;
+  left: 6%; bottom: 10%;
+  width: 36px; height: 68px;
+  animation: auth-fly 9s cubic-bezier(.32,.06,.4,.94) infinite;
+}
+.auth-rocket__sprite {
+  position: absolute; inset: 0;
+  background: transparent;
+  box-shadow:
+    16px 0px #0a0d13,
+    12px 4px #0a0d13,
+    16px 4px #ffc93c,
+    20px 4px #0a0d13,
+    8px 8px #0a0d13,
+    12px 8px #ffc93c,
+    16px 8px #ffc93c,
+    20px 8px #ffc93c,
+    24px 8px #0a0d13,
+    8px 12px #0a0d13,
+    12px 12px #ffc93c,
+    16px 12px #ffc93c,
+    20px 12px #ffc93c,
+    24px 12px #0a0d13,
+    4px 16px #0a0d13,
+    8px 16px #ffc93c,
+    12px 16px #e7eaf0,
+    16px 16px #e7eaf0,
+    20px 16px #e7eaf0,
+    24px 16px #ffc93c,
+    28px 16px #0a0d13,
+    4px 20px #0a0d13,
+    8px 20px #e7eaf0,
+    12px 20px #e7eaf0,
+    16px 20px #3d8bff,
+    20px 20px #e7eaf0,
+    24px 20px #e7eaf0,
+    28px 20px #0a0d13,
+    4px 24px #0a0d13,
+    8px 24px #e7eaf0,
+    12px 24px #e7eaf0,
+    16px 24px #e7eaf0,
+    20px 24px #e7eaf0,
+    24px 24px #e7eaf0,
+    28px 24px #0a0d13,
+    4px 28px #0a0d13,
+    8px 28px #ffc93c,
+    12px 28px #ffc93c,
+    16px 28px #ffc93c,
+    20px 28px #ffc93c,
+    24px 28px #ffc93c,
+    28px 28px #0a0d13,
+    4px 32px #0a0d13,
+    8px 32px #ffc93c,
+    12px 32px #ffc93c,
+    16px 32px #ffc93c,
+    20px 32px #ffc93c,
+    24px 32px #ffc93c,
+    28px 32px #0a0d13,
+    4px 36px #0a0d13,
+    8px 36px #ffc93c,
+    12px 36px #ffc93c,
+    16px 36px #ffc93c,
+    20px 36px #ffc93c,
+    24px 36px #ffc93c,
+    28px 36px #0a0d13,
+    0px 40px #ff4757,
+    4px 40px #ff4757,
+    8px 40px #0a0d13,
+    12px 40px #ffc93c,
+    16px 40px #ffc93c,
+    20px 40px #ffc93c,
+    24px 40px #0a0d13,
+    28px 40px #ff4757,
+    32px 40px #ff4757,
+    0px 44px #ff4757,
+    4px 44px #ff4757,
+    12px 44px #0a0d13,
+    16px 44px #ffc93c,
+    20px 44px #0a0d13,
+    28px 44px #ff4757,
+    32px 44px #ff4757,
+    0px 48px #ff4757,
+    12px 48px #0a0d13,
+    16px 48px #ffc93c,
+    20px 48px #0a0d13,
+    32px 48px #ff4757,
+    12px 52px #ffab3c,
+    16px 52px #ffc93c,
+    20px 52px #ffab3c,
+    8px 56px #ffab3c,
+    12px 56px #ffab3c,
+    16px 56px #ffab3c,
+    20px 56px #ffab3c,
+    24px 56px #ffab3c,
+    12px 60px #ffab3c,
+    16px 60px #ffab3c,
+    20px 60px #ffab3c,
+    16px 64px #ffab3c;
+}
+@keyframes auth-fly {
+  0%   { left: 6%;  bottom: 8%;  transform: rotate(-38deg); opacity: 0; }
+  6%   { opacity: 1; }
+  30%  { left: 30%; bottom: 34%; transform: rotate(-32deg); }
+  55%  { left: 52%; bottom: 54%; transform: rotate(-36deg); }
+  78%  { left: 70%; bottom: 68%; transform: rotate(-30deg); }
+  92%  { left: 82%; bottom: 76%; transform: rotate(-34deg); opacity: 1; }
+  100% { left: 86%; bottom: 79%; transform: rotate(-34deg); opacity: 0; }
+}
+
+/* --- Đồng xu vệt sáng theo sau tên lửa --- */
+.auth-rocket__spark {
+  position: absolute;
+  width: 15px; height: 15px;
+  left: 2px; bottom: -4px;
+  background: transparent;
+  box-shadow: 3px 0px #ffc93c,
+    6px 0px #ffc93c,
+    9px 0px #ffc93c,
+    0px 3px #ffc93c,
+    3px 3px #d99f2b,
+    6px 3px #d99f2b,
+    9px 3px #d99f2b,
+    12px 3px #ffc93c,
+    0px 6px #ffc93c,
+    3px 6px #d99f2b,
+    6px 6px #fff3d1,
+    9px 6px #d99f2b,
+    12px 6px #ffc93c,
+    0px 9px #ffc93c,
+    3px 9px #d99f2b,
+    6px 9px #d99f2b,
+    9px 9px #d99f2b,
+    12px 9px #ffc93c,
+    3px 12px #ffc93c,
+    6px 12px #ffc93c,
+    9px 12px #ffc93c;
+  opacity: 0;
+  animation: auth-spark 1.8s ease-out infinite;
+}
+.auth-rocket__spark.s2 { animation-delay: .55s; left: -6px; bottom: -10px; }
+.auth-rocket__spark.s3 { animation-delay: 1.1s;  left: 8px;  bottom: -8px; }
+@keyframes auth-spark {
+  0%   { opacity: 0; transform: translate(0,0) scale(.6); }
+  15%  { opacity: 1; transform: translate(0,0) scale(1); }
+  100% { opacity: 0; transform: translate(-14px, 22px) scale(.4); }
+}
+
+/* --- Skyline dựng từ các cây nến (candlestick city) --- */
+.auth-skyline {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 34%;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 0 4%;
+  opacity: .5;
+}
+.auth-skyline span {
+  position: relative;
+  flex: 0 0 10px;
+  height: var(--h);
+  border-radius: 1px;
+}
+.auth-skyline span.up { background: var(--up); }
+.auth-skyline span.down { background: var(--down); }
+.auth-skyline span::before {
+  content: '';
+  position: absolute; left: 50%; top: -8px;
+  width: 2px; height: 8px;
+  background: inherit;
+  transform: translateX(-50%);
+}
+.auth-skyline span::after {
+  content: '';
+  position: absolute; left: 50%; bottom: -6px;
+  width: 2px; height: 6px;
+  background: inherit;
+  transform: translateX(-50%);
+}
+
+/* --- Hiệu ứng quét dòng CRT retro --- */
+.auth-scanlines {
+  position: absolute; inset: 0; z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0,0,0,.18) 0px,
+    rgba(0,0,0,.18) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: multiply;
+  opacity: .3;
+}
+
+/* --- Tôn trọng người dùng muốn giảm chuyển động --- */
+@media (prefers-reduced-motion: reduce) {
+  .auth-stars, .auth-stars--far, .auth-moon, .auth-rocket,
+  .auth-rocket__spark { animation: none !important; }
+  .auth-rocket { left: 46%; bottom: 42%; opacity: 1; transform: rotate(-34deg); }
+}
+
+/* --- Responsive: thu nhỏ cảnh nền trên màn hình hẹp --- */
+@media (max-width: 640px) {
+  .auth-moon { transform: scale(.75); top: 6%; right: 6%; }
+  .auth-rocket { transform: scale(.8); }
+  .auth-skyline { height: 26%; gap: 4px; }
+  .auth-skyline span { flex-basis: 7px; }
+}
