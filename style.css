@@ -507,3 +507,68 @@
 }
 .iti__country.iti__highlight { background-color: var(--surface-alt); }
 .iti__selected-dial-code { color: var(--text); }
+/* ===== Chọn ngôn ngữ trong Profile (kiểu popover như các sàn lớn) ===== */
+.profile-lang-wrap { position: relative; margin-bottom: 14px; }
+.profile-lang-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  transition: border-color .15s, background .15s;
+}
+.profile-lang-row:hover { border-color: #3d8bff55; background: var(--surface-alt); }
+.profile-lang-globe { display: flex; color: var(--text-dim); flex-shrink: 0; }
+.profile-lang-globe svg { width: 15px; height: 15px; }
+.profile-lang-label { font-size: 11.5px; color: var(--text-dim); font-weight: 600; white-space: nowrap; }
+.profile-lang-current { flex: 1; text-align: right; font-size: 12.5px; font-weight: 600; color: var(--text); }
+.profile-lang-chevron { color: var(--text-dim); transition: transform .2s; }
+.profile-lang-wrap.open .profile-lang-chevron { transform: rotate(90deg); }
+.profile-lang-wrap.open .profile-lang-row { border-color: #3d8bff77; }
+
+.profile-lang-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px -10px rgba(0,0,0,.55);
+  padding: 6px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  transition: opacity .16s ease, transform .16s ease, visibility .16s;
+  z-index: 130;
+}
+.profile-lang-wrap.open .profile-lang-menu { opacity: 1; visibility: visible; transform: translateY(0); }
+.profile-lang-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s;
+}
+.profile-lang-option:hover { background: var(--surface); }
+.profile-lang-flag { font-size: 16px; line-height: 1; }
+.profile-lang-option span:nth-child(2) { flex: 1; }
+.profile-lang-check { width: 15px; height: 15px; color: var(--accent); opacity: 0; flex-shrink: 0; }
+.profile-lang-option.active { color: var(--accent); font-weight: 700; }
+.profile-lang-option.active .profile-lang-check { opacity: 1; }
