@@ -44,6 +44,44 @@
   let aiEnabled = localStorage.getItem('ok_ai') !== 'false';
   let currentUpColor = localStorage.getItem('ok_upColor') || '#14cc8a';
   let currentDownColor = localStorage.getItem('ok_downColor') || '#ff4757';
+
+  // ==========================================
+  // DANH SÁCH TOÀN BỘ COIN (cặp USDT) TRÊN BINANCE — phục vụ gợi ý tìm kiếm,
+  // cho phép tìm bất kỳ coin nào đang giao dịch thay vì chỉ 5 nút nhanh cố định.
+  // Cache 24h trong localStorage để không phải gọi API mỗi lần tải trang.
+  // ==========================================
+  let allMarketSymbols = []; // [{ symbol:'BTCUSDT', base:'BTC' }, ...]
+  const SYMBOL_CACHE_KEY = 'ok_all_symbols_v1';
+  const SYMBOL_CACHE_TIME_KEY = 'ok_all_symbols_time_v1';
+  const SYMBOL_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 giờ
+
+  function loadMarketSymbols() {
+    try {
+      const cachedTime = parseInt(localStorage.getItem(SYMBOL_CACHE_TIME_KEY) || '0', 10);
+      const cachedData = localStorage.getItem(SYMBOL_CACHE_KEY);
+      if (cachedData && Date.now() - cachedTime < SYMBOL_CACHE_TTL) {
+        allMarketSymbols = JSON.parse(cachedData);
+        return;
+      }
+    } catch (e) { /* cache lỗi thì bỏ qua, tải lại từ mạng */ }
+
+    fetch('https://api.binance.com/api/v3/exchangeInfo')
+      .then(r => r.json())
+      .then(data => {
+        if (!data || !Array.isArray(data.symbols)) return;
+        const list = data.symbols
+          .filter(s => s.quoteAsset === 'USDT' && s.status === 'TRADING')
+          .map(s => ({ symbol: s.symbol, base: s.baseAsset }));
+        allMarketSymbols = list;
+        try {
+          localStorage.setItem(SYMBOL_CACHE_KEY, JSON.stringify(list));
+          localStorage.setItem(SYMBOL_CACHE_TIME_KEY, String(Date.now()));
+        } catch (e) { /* localStorage đầy hoặc bị chặn — không ảnh hưởng tính năng chính */ }
+      })
+      .catch(err => console.log('Không tải được danh sách coin toàn thị trường:', err));
+  }
+  loadMarketSymbols();
+
   
   let whaleLogs = JSON.parse(localStorage.getItem('ok_whale_logs') || '[]');
 
@@ -2186,12 +2224,120 @@
 
   function executeSearch(fromChip) {
     let inputVal = document.getElementById('symbol-input').value.trim().toUpperCase(); if (inputVal === "") return;
-    document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.getAttribute('data-symbol') === (fromChip ? inputVal : null)));
-    if (!inputVal.endsWith('USDT')) inputVal += 'USDT'; currentSymbol = inputVal; localStorage.setItem('ok_symbol', currentSymbol); updateChart();
+    if (!inputVal.endsWith('USDT')) inputVal += 'USDT';
+
+    // Nếu đã tải xong danh sách toàn thị trường, kiểm tra mã có thật sự tồn tại không,
+    // tránh trường hợp gõ sai mã khiến biểu đồ treo ở "Đang tải..." mà không rõ lý do.
+    if (allMarketSymbols.length && !allMarketSymbols.some(s => s.symbol === inputVal)) {
+      showSymbolError(`Không tìm thấy mã "${inputVal.replace('USDT', '')}" trên Binance.`);
+      return;
+    }
+    hideSymbolError();
+
+    document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.getAttribute('data-symbol') === (fromChip ? inputVal.replace('USDT', '') : null)));
+    currentSymbol = inputVal; localStorage.setItem('ok_symbol', currentSymbol); updateChart();
+    hideSymbolSuggest();
   }
   document.getElementById('search-btn').addEventListener('click', () => executeSearch(false));
-  document.getElementById('symbol-input').addEventListener('keypress', e => { if (e.key === 'Enter') executeSearch(false); });
   document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', function(){ document.getElementById('symbol-input').value = this.getAttribute('data-symbol'); executeSearch(true); }));
+
+  // ==========================================
+  // GỢI Ý COIN TOÀN THỊ TRƯỜNG (autocomplete) — gõ tới đâu, gợi ý các coin khớp tới đó
+  // ==========================================
+  const symbolInputEl = document.getElementById('symbol-input');
+  const symbolSuggestEl = document.getElementById('symbol-suggest');
+  const symbolErrorEl = document.getElementById('symbol-error');
+  let suggestHighlightIndex = -1;
+  let currentSuggestList = [];
+
+  function showSymbolError(msg) { symbolErrorEl.textContent = msg; symbolErrorEl.classList.add('show'); }
+  function hideSymbolError() { symbolErrorEl.classList.remove('show'); }
+  function hideSymbolSuggest() { symbolSuggestEl.classList.remove('show'); symbolSuggestEl.innerHTML = ''; suggestHighlightIndex = -1; currentSuggestList = []; }
+
+  function renderSymbolSuggest(query) {
+    hideSymbolError();
+    if (!query || !allMarketSymbols.length) { hideSymbolSuggest(); return; }
+
+    // Ưu tiên các mã bắt đầu đúng bằng ký tự đã gõ, sau đó mới tới các mã chỉ chứa ký tự đó ở giữa
+    const starts = []; const contains = [];
+    for (const s of allMarketSymbols) {
+      if (s.base === query) { starts.unshift(s); }
+      else if (s.base.startsWith(query)) { starts.push(s); }
+      else if (s.base.includes(query)) { contains.push(s); }
+      if (starts.length >= 8) break;
+    }
+    currentSuggestList = starts.concat(contains).slice(0, 8);
+    suggestHighlightIndex = -1;
+
+    if (!currentSuggestList.length) {
+      symbolSuggestEl.innerHTML = '<div class="symbol-suggest-empty">Không có coin nào khớp</div>';
+      symbolSuggestEl.classList.add('show');
+      return;
+    }
+
+    symbolSuggestEl.innerHTML = currentSuggestList.map(s =>
+      `<div class="symbol-suggest-item" data-symbol="${s.symbol}" data-base="${s.base}">
+        <span class="symbol-suggest-base">${s.base}</span>
+        <span class="symbol-suggest-quote">/USDT</span>
+      </div>`
+    ).join('');
+    symbolSuggestEl.classList.add('show');
+  }
+
+  function selectSuggestion(base) {
+    symbolInputEl.value = base;
+    hideSymbolSuggest();
+    executeSearch(false);
+  }
+
+  symbolInputEl.addEventListener('input', () => {
+    hideSymbolError();
+    renderSymbolSuggest(symbolInputEl.value.trim().toUpperCase());
+  });
+
+  symbolInputEl.addEventListener('focus', () => {
+    if (symbolInputEl.value.trim()) renderSymbolSuggest(symbolInputEl.value.trim().toUpperCase());
+  });
+
+  symbolInputEl.addEventListener('keydown', (e) => {
+    if (symbolSuggestEl.classList.contains('show') && currentSuggestList.length) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        suggestHighlightIndex = Math.min(suggestHighlightIndex + 1, currentSuggestList.length - 1);
+        updateSuggestHighlight();
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        suggestHighlightIndex = Math.max(suggestHighlightIndex - 1, 0);
+        updateSuggestHighlight();
+        return;
+      }
+      if (e.key === 'Escape') { hideSymbolSuggest(); return; }
+      if (e.key === 'Enter' && suggestHighlightIndex >= 0) {
+        e.preventDefault();
+        selectSuggestion(currentSuggestList[suggestHighlightIndex].base);
+        return;
+      }
+    }
+    if (e.key === 'Enter') executeSearch(false);
+  });
+
+  function updateSuggestHighlight() {
+    const items = symbolSuggestEl.querySelectorAll('.symbol-suggest-item');
+    items.forEach((el, i) => el.classList.toggle('hl', i === suggestHighlightIndex));
+  }
+
+  symbolSuggestEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.symbol-suggest-item');
+    if (item) selectSuggestion(item.getAttribute('data-base'));
+  });
+
+  // Click ra ngoài ô tìm kiếm / gợi ý thì ẩn dropdown đi
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-box-wrap')) hideSymbolSuggest();
+  });
+
   document.querySelectorAll('.tf-btn').forEach(btn => btn.addEventListener('click', function() { document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active')); this.classList.add('active'); currentInterval = this.getAttribute('data-interval'); localStorage.setItem('ok_interval', currentInterval); updateChart(); }));
   window.addEventListener('resize', resizeAllCharts);
   // ResizeObserver: bám sát kích thước THẬT của khung chart-wrapper mọi lúc — không chỉ khi cửa sổ trình
