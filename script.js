@@ -102,6 +102,11 @@
 
   let candlesData = []; let volumesData = [];
   let candlesDataMap = new Map(); let volumesDataMap = new Map();
+  // ===== Tải lịch sử vô hạn (infinite scroll-back), giống các sàn lớn =====
+  // Chỉ tải trước 1000 nến gần nhất cho nhanh; khi người dùng cuộn chart về gần cây nến cũ nhất đang có,
+  // tự động gọi thêm 1000 nến cũ hơn nữa (dùng endTime của Binance), nối vào đầu mảng, giữ nguyên vị trí đang xem.
+  let isLoadingOlderHistory = false;
+  let noMoreHistoryKey = null; // 'SYMBOL|interval' đã xác nhận tải hết lịch sử thật của coin đó
   let signalsMap = new Map(); 
   let currentWebSocket = null; let currentTickerWS = null; let whaleWS = null;
   let reconnectTimeout = null; let syncInterval = null;
@@ -817,6 +822,8 @@
   }
   const priceTimeScale = chartPrice.timeScale(); const volTimeScale = chartVolume.timeScale(); const rsiTimeScale = chartRSI.timeScale();
   registerTimeScale(priceTimeScale); registerTimeScale(volTimeScale); registerTimeScale(rsiTimeScale);
+  // Cuộn gần tới mép trái (cây nến cũ nhất đang tải) -> tự động nạp thêm 1000 nến cũ hơn.
+  priceTimeScale.subscribeVisibleLogicalRangeChange(range => { if (range && range.from < 50) loadOlderHistory(); });
 
 
   // ===== Hàm tính toán chỉ báo chuẩn theo công thức phổ biến trên các sàn lớn =====
@@ -2288,19 +2295,116 @@
   // ==========================================
   // 5. MAIN DATA LOOP & NETWORK DISCONNECT
   // ==========================================
-  function fetchSyncData() {
+  // Khoá 'symbol|interval' hiện tại, dùng để nhận biết nếu người dùng đổi coin/khung trong lúc đang chờ tải lịch sử cũ
+  function historyKey() { return currentSymbol + '|' + currentInterval; }
+
+  function loadOlderHistory() {
+    if (isLoadingOlderHistory || !candlesData.length) return Promise.resolve(false);
+    const key = historyKey();
+    if (noMoreHistoryKey === key) return Promise.resolve(false); // đã xác nhận đây là cây nến đầu tiên trong lịch sử của coin, không tải nữa
+    isLoadingOlderHistory = true;
+    const endTime = Math.round(candlesData[0].time * 1000) - 1; // trước cây nến cũ nhất đang có 1ms
+    return fetch(`https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${endTime}`)
+      .then(r => r.json())
+      .then(data => {
+        isLoadingOlderHistory = false;
+        if (key !== historyKey()) return false; // đã đổi coin/khung trong lúc chờ -> bỏ kết quả cũ, khỏi ghép nhầm
+        if (!Array.isArray(data) || data.length === 0) { noMoreHistoryKey = key; return false; }
+        const older = []; const olderVol = [];
+        data.forEach(d => {
+          const time = d[0] / 1000;
+          if (candlesDataMap.has(time)) return; // an toàn, tránh trùng nến ở ranh giới
+          const open = parseFloat(d[1]), high = parseFloat(d[2]), low = parseFloat(d[3]), close = parseFloat(d[4]), volume = parseFloat(d[5]);
+          const cData = { time, open, high, low, close };
+          const vData = { time, value: volume, color: close >= open ? currentUpColor + '59' : currentDownColor + '59' };
+          older.push(cData); olderVol.push(vData);
+          candlesDataMap.set(time, cData); volumesDataMap.set(time, vData);
+        });
+        if (!older.length) { noMoreHistoryKey = key; return false; }
+        if (data.length < 1000) noMoreHistoryKey = key; // sàn trả về ít hơn limit -> đã chạm đáy lịch sử, không cần gọi thêm lần sau
+        const addedCount = older.length;
+        candlesData = older.concat(candlesData);
+        volumesData = olderVol.concat(volumesData);
+        // Giữ nguyên đúng vị trí đang xem: mảng dài ra thêm addedCount phần tử ở đầu, nên mọi logical index cũ
+        // (kể cả của các bản vẽ) bị dịch phải đúng addedCount đơn vị -> dời visible range theo cùng độ dịch đó
+        // để chart không bị giật/nhảy lúc vừa nạp thêm lịch sử.
+        const savedRange = priceTimeScale.getVisibleLogicalRange();
+        candleSeries.setData(candlesData); volumeSeries.setData(volumesData);
+        if (savedRange) {
+          const shifted = { from: savedRange.from + addedCount, to: savedRange.to + addedCount };
+          allTimeScales.forEach(ts => { try { ts.setVisibleLogicalRange(shifted); } catch (e) {} });
+        }
+        updateAllIndicators();
+        return true;
+      })
+      .catch(err => { isLoadingOlderHistory = false; console.log('Lỗi tải lịch sử cũ:', err); return false; });
+  }
+
+  // Tự động kéo đủ lịch sử cũ cho tới khi TOÀN BỘ bản vẽ đã lưu (của symbol hiện tại) nằm trong vùng dữ liệu đã tải,
+  // giống cách các sàn lớn làm: mở lại 1 trend-line vẽ trên khung 15 phút thì khung 4H (hay bất kỳ khung nào khác)
+  // tự kéo đủ nến để hiện đúng bản vẽ đó ngay, người dùng không cần tự tay cuộn ngược lại tìm.
+  function ensureHistoryCoversDrawings(triesLeft) {
+    if (triesLeft === undefined) triesLeft = 30; // chặn spam API nếu bản vẽ có mốc thời gian bất thường/quá xa
+    if (triesLeft <= 0 || !candlesData.length || !drawings.length) return;
+    let oldestNeeded = null;
+    drawings.forEach(d => {
+      if (!d || !d.points) return;
+      d.points.forEach(p => { if (p && p.time != null && (oldestNeeded === null || p.time < oldestNeeded)) oldestNeeded = p.time; });
+    });
+    if (oldestNeeded === null || oldestNeeded >= candlesData[0].time) return; // dữ liệu hiện có đã đủ, không cần tải thêm
+    if (noMoreHistoryKey === historyKey()) return; // đã chạm đáy lịch sử thật -> bản vẽ đó nằm trước cả lúc coin niêm yết
+    loadOlderHistory().then(got => { if (got) ensureHistoryCoversDrawings(triesLeft - 1); });
+  }
+
+  // Nối nến mới nhất (parsedCandles, đã sắp xếp tăng dần) vào candlesData hiện có, CHỈ thay thế phần đuôi trùng thời
+  // gian — không đụng tới phần lịch sử cũ hơn đã được tải thêm qua loadOlderHistory(). Dùng cho đồng bộ định kỳ.
+  function mergeRecentCandles(parsedCandles, parsedVolumes) {
+    if (!parsedCandles.length) return;
+    if (!candlesData.length) { candlesData = parsedCandles; volumesData = parsedVolumes; return; }
+    const cutoff = parsedCandles[0].time;
+    let lo = 0, hi = candlesData.length; // tìm nhị phân vị trí đầu tiên có time >= cutoff (mảng đã sắp xếp tăng dần)
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (candlesData[mid].time < cutoff) lo = mid + 1; else hi = mid; }
+    candlesData = candlesData.slice(0, lo).concat(parsedCandles);
+    volumesData = volumesData.slice(0, lo).concat(parsedVolumes);
+  }
+
+  // isFreshLoad = true: dùng khi đổi coin/khung thời gian — nạp lại từ đầu, đưa view về hiện tại, kéo đủ lịch sử cho bản vẽ.
+  // isFreshLoad = false (mặc định): đồng bộ định kỳ mỗi 45s — chỉ cập nhật/nối các nến gần nhất, KHÔNG xoá lịch sử cũ
+  // đã tải thêm và KHÔNG di chuyển khung nhìn (để không phá trải nghiệm đang xem giá quá khứ của người dùng).
+  function fetchSyncData(isFreshLoad) {
+    if (isFreshLoad) noMoreHistoryKey = null; // nến mới nhất được nạp lại từ đầu -> reset cờ "đã hết lịch sử" cho lần cuộn tiếp theo
     fetch(`https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000`)
       .then(r => r.json())
       .then(data => {
-        const parsedCandles = []; const parsedVolumes = []; candlesDataMap.clear(); volumesDataMap.clear();
+        const parsedCandles = []; const parsedVolumes = [];
+        if (isFreshLoad) { candlesDataMap.clear(); volumesDataMap.clear(); }
         data.forEach(d => {
           const time = d[0]/1000; const open = parseFloat(d[1]); const high = parseFloat(d[2]); const low = parseFloat(d[3]); const close = parseFloat(d[4]); const volume = parseFloat(d[5]);
           const cData = { time, open, high, low, close };
           const vData = { time, value: volume, color: close >= open ? currentUpColor+'59' : currentDownColor+'59' };
           parsedCandles.push(cData); parsedVolumes.push(vData); candlesDataMap.set(time, cData); volumesDataMap.set(time, vData);
         });
-        candleSeries.setData(parsedCandles); volumeSeries.setData(parsedVolumes); applyDynamicPricePrecision(true); syncPriceScaleWidths();
-        candlesData = parsedCandles; volumesData = parsedVolumes;
+
+        if (isFreshLoad) {
+          candlesData = parsedCandles; volumesData = parsedVolumes;
+        } else {
+          mergeRecentCandles(parsedCandles, parsedVolumes); // giữ nguyên phần lịch sử cũ đã tải thêm trước đó
+        }
+        candleSeries.setData(candlesData); volumeSeries.setData(volumesData); applyDynamicPricePrecision(true); syncPriceScaleWidths();
+
+        if (isFreshLoad) {
+          // Ép trục thời gian quay lại đúng vùng "hiện tại" — CHỈ khi đây là lần nạp mới do đổi coin/khung.
+          // Nếu không làm việc này, Lightweight Charts sẽ GIỮ NGUYÊN logical range (vùng đang xem theo chỉ số bar)
+          // từ khung cũ rồi áp lên bộ nến mới — do các khung khác nhau tải các khoảng lịch sử thực tế rất khác nhau
+          // (limit=1000 nến: 1m ~ 16 giờ, 1D ~ gần 3 năm), viewport dễ "nhảy" ra khỏi vùng có bản vẽ hoặc bị ép về
+          // một mép của chart. scrollToRealTime() đưa cây nến mới nhất về sát mép phải, khớp với cách các bản vẽ
+          // (được lưu theo mốc thời gian thực) được tính lại toạ độ trong xOf()/logicalToTime().
+          // Không gọi ở lần đồng bộ định kỳ (45s) để không kéo giật chart khi người dùng đang xem giá quá khứ.
+          allTimeScales.forEach(ts => { try { ts.scrollToRealTime(); } catch (e) {} });
+          // Sau khi có bộ nến mới nhất, kiểm tra xem các bản vẽ đã lưu của coin này có mốc thời gian nào cũ hơn
+          // cây nến sớm nhất vừa tải không -> nếu có thì tự kéo thêm lịch sử để bản vẽ hiện đúng ngay, không cần cuộn tay.
+          ensureHistoryCoversDrawings();
+        }
         // Ép tính lại RSI/EMA/MACD... NGAY khi vừa đồng bộ lại toàn bộ nến — nếu không, các pane chỉ báo
         // (RSI, MACD...) sẽ giữ dữ liệu cũ cho tới tick websocket kế tiếp mới cập nhật, khiến đường RSI
         // hiển thị "ngắn hơn" / lệch so với Nến và Volume (vốn đã có dữ liệu mới ngay lập tức ở trên).
@@ -2321,7 +2425,7 @@
     // (dữ liệu của các coin khác vẫn được giữ nguyên, đang được ghi nhận ở nền).
     if (typeof renderWhaleLogs === 'function') renderWhaleLogs();
 
-    fetchSyncData(); syncInterval = setInterval(fetchSyncData, 45 * 1000); fetchBinanceSentiment(currentSymbol);
+    fetchSyncData(true); syncInterval = setInterval(() => fetchSyncData(false), 45 * 1000); fetchBinanceSentiment(currentSymbol);
 
     function initWebSockets() {
       currentTickerWS = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@ticker`);
@@ -2388,7 +2492,7 @@
     initWebSockets();
   }
 
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchSyncData(); });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchSyncData(/* isFreshLoad */ false); }); // quay lại tab -> chỉ đồng bộ nến gần nhất, không kéo giật view
 
   document.getElementById('color-up').addEventListener('input', e => { currentUpColor = e.target.value; localStorage.setItem('ok_upColor', currentUpColor); updateCSSVariables(currentUpColor, currentDownColor); candleSeries.applyOptions({ upColor: currentUpColor, wickUpColor: currentUpColor }); updateChart(); });
   document.getElementById('color-down').addEventListener('input', e => { currentDownColor = e.target.value; localStorage.setItem('ok_downColor', currentDownColor); updateCSSVariables(currentUpColor, currentDownColor); candleSeries.applyOptions({ downColor: currentDownColor, wickDownColor: currentDownColor }); updateChart(); });
