@@ -8,6 +8,10 @@
     } catch (e) {}
   })();
 
+  // Thiết bị cảm ứng (điện thoại/tablet) cần vùng chạm lớn hơn & UI gọn/khác hành vi hover so với
+  // chuột trên desktop — dùng chung cho cả hệ thống vẽ lẫn legend chỉ báo bên dưới.
+  const isTouchDevice = (window.matchMedia && (window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches)) || ('ontouchstart' in window);
+
   // =========================================================
   // BỘ ICON LINEAL DÙNG CHUNG (thay toàn bộ icon emoji cũ bằng icon nét mảnh đồng bộ)
   // =========================================================
@@ -61,6 +65,7 @@
       const cachedData = localStorage.getItem(SYMBOL_CACHE_KEY);
       if (cachedData && Date.now() - cachedTime < SYMBOL_CACHE_TTL) {
         allMarketSymbols = JSON.parse(cachedData);
+        if (typeof startMarketWhaleWatcher === 'function') startMarketWhaleWatcher();
         return;
       }
     } catch (e) { /* cache lỗi thì bỏ qua, tải lại từ mạng */ }
@@ -77,6 +82,7 @@
           localStorage.setItem(SYMBOL_CACHE_KEY, JSON.stringify(list));
           localStorage.setItem(SYMBOL_CACHE_TIME_KEY, String(Date.now()));
         } catch (e) { /* localStorage đầy hoặc bị chặn — không ảnh hưởng tính năng chính */ }
+        if (typeof startMarketWhaleWatcher === 'function') startMarketWhaleWatcher();
       })
       .catch(err => console.log('Không tải được danh sách coin toàn thị trường:', err));
   }
@@ -84,6 +90,10 @@
 
   
   let whaleLogs = JSON.parse(localStorage.getItem('ok_whale_logs') || '[]');
+  // Trước đây chỉ lưu tối đa 50 lệnh vì chỉ theo dõi 1 coin đang xem. Giờ giám sát NỀN toàn bộ
+  // coin trên thị trường cùng lúc nên nâng giới hạn lên nhiều hơn để log của các coin ít giao dịch
+  // không bị các coin sôi động (BTC, ETH...) đẩy trôi mất quá nhanh.
+  const MAX_WHALE_LOGS = 400;
 
   let whaleLarge = parseFloat(localStorage.getItem('ok_whale_large')) || 500000;
   let whaleMid = parseFloat(localStorage.getItem('ok_whale_mid')) || 100000;
@@ -160,9 +170,12 @@
 
   window.clearAllSharkLogs = function() {
     try {
-      if (confirm("Bạn có chắc chắn muốn dọn sạch nhật ký cá mập?")) { 
-        if (typeof whaleLogs !== 'undefined') whaleLogs = []; 
-        localStorage.setItem('ok_whale_logs', JSON.stringify([])); 
+      // Nhật ký cá mập giờ hiển thị riêng theo từng coin, nên "Xóa tất cả" chỉ dọn log của
+      // coin đang xem — không xóa dữ liệu nền của các coin khác đang được âm thầm ghi nhận.
+      const coinLabel = (typeof currentSymbol !== 'undefined' ? currentSymbol.replace('USDT', '') : '');
+      if (confirm(`Bạn có chắc chắn muốn dọn sạch nhật ký cá mập của ${coinLabel}? (Dữ liệu các coin khác vẫn được giữ nguyên)`)) { 
+        if (typeof whaleLogs !== 'undefined') whaleLogs = whaleLogs.filter(log => log.symbol !== currentSymbol); 
+        localStorage.setItem('ok_whale_logs', JSON.stringify(whaleLogs)); 
         if (typeof renderWhaleLogs === 'function') renderWhaleLogs(); 
       }
     } catch (error) {
@@ -768,12 +781,17 @@
     });
     return maxWidth;
   }
-  // Vòng lặp tự-chữa-lành: đo & ép lại độ rộng trục mỗi khung hình nếu có thay đổi.
+  // Vòng lặp tự-chữa-lành: đo & ép lại độ rộng trục nếu có thay đổi.
   // Đây là lưới an toàn cuối cùng — dù bất kỳ thao tác nào (thêm/xoá chỉ báo, đổi màu, kéo resize,
   // đổi coin, tick giá mới...) làm lệch trục mà quên gọi syncPriceScaleWidths(), vòng lặp này vẫn
-  // tự phát hiện và ép các pane thẳng hàng lại ngay trong khung hình kế tiếp — không bao giờ bị "thụt".
+  // tự phát hiện và ép các pane thẳng hàng lại — không bao giờ bị "thụt".
+  // Trước đây chạy bằng requestAnimationFrame (60 lần/giây, MÃI MÃI, kể cả khi không ai thao tác gì
+  // và kể cả khi tab đang ẩn) — đây là 1 trong 2 nguyên nhân chính gây ì máy/tốn pin liên tục.
+  // Việc đo độ rộng trục chỉ thực sự cần thiết sau các thao tác làm lệch trục, không cần tần suất
+  // khung hình. Đổi sang kiểm tra định kỳ (rất nhẹ) và tạm dừng hẳn khi tab đang ẩn.
   let lastSyncedAxisWidth = 0;
   function widthSyncWatchLoop() {
+    if (document.hidden) return;
     const regs = Object.values(paneRegistry).filter(r => r && r.chart);
     if (regs.length) {
       let maxWidth = 90;
@@ -783,9 +801,8 @@
         regs.forEach(reg => { try { reg.chart.priceScale('right').applyOptions({ minimumWidth: maxWidth }); } catch (e) {} });
       }
     }
-    requestAnimationFrame(widthSyncWatchLoop);
   }
-  requestAnimationFrame(widthSyncWatchLoop);
+  setInterval(widthSyncWatchLoop, 800);
   function updatePaneAxisVisibility() {
     const panes = Array.from(document.getElementById('chart-wrapper').querySelectorAll('.sub-pane'));
     panes.forEach((p, idx) => { const reg = paneRegistry[p.dataset.pane]; if (reg) reg.chart.applyOptions({ timeScale: { visible: idx === panes.length - 1 } }); });
@@ -795,7 +812,7 @@
   // ===== Đồng bộ trục thời gian (mesh) — tự động cuốn theo pane mới tạo =====
   let allTimeScales = [];
   function registerTimeScale(ts) {
-    ts.subscribeVisibleLogicalRangeChange(range => { if (!range) return; allTimeScales.forEach(o => { if (o !== ts) o.setVisibleLogicalRange(range); }); });
+    ts.subscribeVisibleLogicalRangeChange(range => { if (!range) return; panZoomActiveUntil = Date.now() + 400; if (typeof ensureDrawLoopRunning === 'function') ensureDrawLoopRunning(); allTimeScales.forEach(o => { if (o !== ts) o.setVisibleLogicalRange(range); }); });
     allTimeScales.push(ts);
   }
   const priceTimeScale = chartPrice.timeScale(); const volTimeScale = chartVolume.timeScale(); const rsiTimeScale = chartRSI.timeScale();
@@ -1180,8 +1197,12 @@
       const item = document.createElement('div');
       item.className = 'ind-item' + (ind.visible ? '' : ' ind-hidden');
       item.draggable = true; item.dataset.key = ind.id;
-      const groupsHtml = subSeriesMeta(ind).map((m, idx) => `<span class="ind-group"><span class="ind-dot" style="background:${m.color}"></span><span class="ind-label">${m.label}</span><span class="ind-value" data-key="${ind.id}_${idx}" style="color:${m.color}"></span></span>`).join('');
-      item.innerHTML = `<span class="ind-drag">${icon('grip')}</span>${groupsHtml}<button class="ind-eye" data-key="${ind.id}" type="button" title="Ẩn/hiện">${ind.visible ? icon('eye') : icon('eyeOff')}</button><button class="ind-gear" data-key="${ind.id}" type="button" title="Cài đặt">${icon('gear')}</button><button class="ind-trash" data-key="${ind.id}" type="button" title="Xóa">${icon('trash')}</button>`;
+      const meta = subSeriesMeta(ind);
+      // Chỉ hiện tên chỉ báo riêng khi có từ 2 đường con trở lên (RSI/MACD/Stoch/BB) để không lặp lại
+      // tên 2 lần như trước — 1 dòng gọn giống đúng cách Binance/TradingView hiện: "BB 20,2  Basis .. Upper .. Lower .."
+      const nameHtml = meta.length > 1 ? `<span class="ind-name">${labelFor(ind)}</span>` : '';
+      const groupsHtml = meta.map((m, idx) => `<span class="ind-group"><span class="ind-dot" style="background:${m.color}"></span><span class="ind-label">${m.label}</span><span class="ind-value" data-key="${ind.id}_${idx}" style="color:${m.color}"></span></span>`).join('');
+      item.innerHTML = `${nameHtml}${groupsHtml}<span class="ind-actions"><button class="ind-eye" data-key="${ind.id}" type="button" title="Ẩn/hiện">${ind.visible ? icon('eye') : icon('eyeOff')}</button><button class="ind-gear" data-key="${ind.id}" type="button" title="Cài đặt">${icon('gear')}</button><button class="ind-trash" data-key="${ind.id}" type="button" title="Xóa">${icon('trash')}</button></span>`;
       container.appendChild(item);
     });
   }
@@ -1209,9 +1230,17 @@
     const container = document.getElementById(containerId); if (!container) return;
     container.addEventListener('click', e => {
       const eyeBtn = e.target.closest('.ind-eye'), gearBtn = e.target.closest('.ind-gear'), trashBtn = e.target.closest('.ind-trash');
-      if (eyeBtn) toggleIndicatorVisibility(eyeBtn.dataset.key);
-      else if (gearBtn) openIndicatorPopover(gearBtn.dataset.key, gearBtn);
-      else if (trashBtn) { if (confirm('Xóa chỉ báo này khỏi biểu đồ?')) deleteIndicator(trashBtn.dataset.key); }
+      if (eyeBtn) { toggleIndicatorVisibility(eyeBtn.dataset.key); return; }
+      if (gearBtn) { openIndicatorPopover(gearBtn.dataset.key, gearBtn); return; }
+      if (trashBtn) { if (confirm('Xóa chỉ báo này khỏi biểu đồ?')) deleteIndicator(trashBtn.dataset.key); return; }
+      // Trên cảm ứng không có hover — chạm vào 1 dòng chỉ báo để lộ nút ẩn/hiện-cài đặt-xoá,
+      // chạm dòng khác hoặc ra ngoài sẽ tự đóng lại (giống app các sàn lớn trên di động).
+      if (isTouchDevice) {
+        const item = e.target.closest('.ind-item'); if (!item) return;
+        const wasOpen = item.classList.contains('legend-open');
+        container.querySelectorAll('.ind-item.legend-open').forEach(el => el.classList.remove('legend-open'));
+        if (!wasOpen) item.classList.add('legend-open');
+      }
     });
     container.addEventListener('dragstart', e => { const item = e.target.closest('.ind-item'); if (!item) return; draggingIndicatorId = item.dataset.key; item.classList.add('dragging'); });
     container.addEventListener('dragend', e => { const item = e.target.closest('.ind-item'); if (item) item.classList.remove('dragging'); draggingIndicatorId = null; });
@@ -1220,6 +1249,12 @@
       e.preventDefault(); e.stopPropagation();
       const item = e.target.closest('.ind-item'); if (!draggingIndicatorId) return;
       moveIndicatorToPane(draggingIndicatorId, paneId, item ? item.dataset.key : null);
+    });
+  }
+  if (isTouchDevice) {
+    document.addEventListener('click', e => {
+      if (e.target.closest('.ind-item')) return;
+      document.querySelectorAll('.ind-item.legend-open').forEach(el => el.classList.remove('legend-open'));
     });
   }
 
@@ -1330,7 +1365,7 @@
     fib: 'Click điểm đỉnh/đáy bắt đầu, rồi click điểm kết thúc để vẽ Fibonacci',
     rect: 'Click 1 góc, rồi click góc đối diện để vẽ hình chữ nhật',
     circle: 'Click 1 điểm, rồi click điểm còn lại để vẽ hình tròn/ê-líp',
-    polyline: 'Click nhiều điểm liên tiếp — nhấn Enter để hoàn tất, Esc để huỷ',
+    polyline: 'Click nhiều điểm liên tiếp — nhấn Enter hoặc chạm đúp (double-tap) để hoàn tất, Esc để huỷ',
     arrow: 'Click điểm bắt đầu, rồi click vị trí đầu mũi tên',
     text: 'Click vào vị trí muốn chèn ghi chú',
     measure: 'Click điểm đầu, rồi click điểm cuối để đo chênh lệch giá/%/số nến',
@@ -1340,12 +1375,34 @@
   let currentTool = 'cursor';
   let drawings = [];
   let pendingPoints = [];
+  let lastPolyClick = null; // theo dõi lần chạm/click gần nhất để nhận diện double-tap/double-click hoàn tất polyline
   let previewPoint = null;
   let selectedId = null;
   let magnetOn = localStorage.getItem('ok_draw_magnet') === 'true';
   let lockOn = localStorage.getItem('ok_draw_lock') === 'true';
   let hiddenOn = false;
   let W = 0, H = 0;
+  // Thiết bị cảm ứng cần vùng chạm lớn hơn nhiều so với con trỏ chuột để chọn/kéo đường vẽ chính
+  // xác bằng ngón tay — giống cách TradingView tăng "hit area" trên mobile. (isTouchDevice khai
+  // báo ở đầu file để dùng chung cho cả legend chỉ báo.)
+  const HIT_TOL = isTouchDevice ? 16 : 8;      // dung sai để chọn/xoá 1 bản vẽ
+  const HANDLE_TOL = isTouchDevice ? 20 : 10;  // dung sai để tóm lấy 1 chấm neo (handle) mà kéo
+  const HANDLE_R = isTouchDevice ? 7 : 5;      // bán kính vẽ chấm neo trên canvas
+  // Vòng lặp vẽ canvas (renderDrawings, bên dưới) trước đây chạy requestAnimationFrame MÃI MÃI —
+  // 60 lần/giây suốt vòng đời trang, kể cả khi không ai chạm gì vào biểu đồ. Đây là nguyên nhân
+  // chính thứ 2 gây ì máy/tốn pin (cùng với widthSyncWatchLoop ở trên). Giờ chỉ chạy khi thực sự
+  // đang có tương tác (hover/kéo bản vẽ/pan-zoom/đang đặt điểm vẽ dở); ở trạng thái nghỉ thì dừng hẳn.
+  let drawLoopRunning = false;
+  let isPointerOverChartArea = false;
+  let panZoomActiveUntil = 0;
+  function isChartInteractionActive() {
+    return isPointerOverChartArea || isDragging || Date.now() < panZoomActiveUntil || pendingPoints.length > 0;
+  }
+  function ensureDrawLoopRunning() {
+    if (drawLoopRunning) return;
+    drawLoopRunning = true;
+    requestAnimationFrame(renderDrawings);
+  }
 
   function drawColor() { return document.getElementById('draw-color')?.value || '#3d8bff'; }
   function drawStorageKey() { return 'ok_drawings_' + currentSymbol; }
@@ -1414,6 +1471,15 @@
     dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   resizeDrawCanvas();
+
+  // Đánh thức vòng lặp vẽ khi có tương tác, để nó chạy mượt trong lúc dùng và tự dừng lúc nghỉ.
+  const chartWrapperElForDraw = document.getElementById('chart-wrapper');
+  if (chartWrapperElForDraw) {
+    chartWrapperElForDraw.addEventListener('pointerenter', () => { isPointerOverChartArea = true; ensureDrawLoopRunning(); });
+    chartWrapperElForDraw.addEventListener('pointerleave', () => { isPointerOverChartArea = false; });
+    chartWrapperElForDraw.addEventListener('pointerdown', () => { isPointerOverChartArea = true; ensureDrawLoopRunning(); });
+  }
+  window.addEventListener('resize', () => ensureDrawLoopRunning());
 
   // ===== Thanh công cụ nổi cho bản vẽ đang được chọn (đổi màu / độ dày / ẩn / nhân bản / khoá / xoá) =====
   const objToolbar = document.createElement('div');
@@ -1623,8 +1689,14 @@
       case 'text': { const p = xy(d.points[0]); if (!p) break; dctx.font = '600 13px Inter, sans-serif'; dctx.fillStyle = d.color; dctx.textBaseline = 'bottom'; dctx.textAlign = 'left'; dctx.fillText(d.text || '', p.x + 4, p.y - 4); break; }
     }
     if (selected) {
-      dctx.fillStyle = d.color;
-      (d.points || []).forEach(pt => { const p = xy(pt); if (!p) return; dctx.beginPath(); dctx.arc(p.x, p.y, 4, 0, Math.PI * 2); dctx.fill(); });
+      (d.points || []).forEach(pt => {
+        const p = xy(pt); if (!p) return;
+        dctx.beginPath(); dctx.arc(p.x, p.y, HANDLE_R + 2, 0, Math.PI * 2);
+        dctx.fillStyle = '#0e131b'; dctx.fill();
+        dctx.beginPath(); dctx.arc(p.x, p.y, HANDLE_R, 0, Math.PI * 2);
+        dctx.fillStyle = d.color; dctx.fill();
+        dctx.lineWidth = 1.6; dctx.strokeStyle = '#ffffff'; dctx.stroke();
+      });
     }
     if (d.locked) {
       const anchorPt = (d.points || [])[0]; const p = anchorPt ? xy(anchorPt) : null;
@@ -1644,6 +1716,19 @@
     const pts = pendingPoints.concat(previewPoint ? [previewPoint] : []);
     dctx.globalAlpha = 0.75; drawOne({ type: currentTool, points: pts, color: drawColor(), text: '' }, false); dctx.globalAlpha = 1;
   }
+  function drawMagnetHighlight() {
+    if (!magnetOn) return;
+    let pt = null;
+    if (dragDrawing && dragPointIndex >= 0 && isDragging) pt = dragDrawing.points[dragPointIndex];
+    else if (currentTool !== 'cursor' && currentTool !== 'eraser' && previewPoint) pt = previewPoint;
+    if (!pt) return;
+    const p = xy(pt); if (!p) return;
+    dctx.save();
+    dctx.strokeStyle = '#f0b90b'; dctx.lineWidth = 1.5;
+    dctx.globalAlpha = 0.95; dctx.beginPath(); dctx.arc(p.x, p.y, 5, 0, Math.PI * 2); dctx.stroke();
+    dctx.globalAlpha = 0.35; dctx.beginPath(); dctx.arc(p.x, p.y, 9, 0, Math.PI * 2); dctx.stroke();
+    dctx.restore();
+  }
   function renderDrawings() {
     if (document.hidden) { requestAnimationFrame(renderDrawings); return; }
     const host = document.getElementById('chart-price');
@@ -1653,10 +1738,14 @@
     dctx.clearRect(0, 0, W, H);
     if (!hiddenOn) drawings.forEach(d => { if (!d.hidden) drawOne(d, d.id === selectedId); });
     drawPending();
+    drawMagnetHighlight();
     updateObjToolbar();
-    requestAnimationFrame(renderDrawings);
+    // Chỉ tiếp tục lặp khung hình kế tiếp khi vẫn đang có tương tác thật sự; nếu không, dừng hẳn
+    // vòng lặp để không ngốn CPU/pin ở trạng thái nghỉ. ensureDrawLoopRunning() sẽ khởi động lại
+    // ngay khi có tương tác mới (hover vào biểu đồ, kéo bản vẽ, pan/zoom, resize, đổi coin...).
+    if (isChartInteractionActive()) { requestAnimationFrame(renderDrawings); } else { drawLoopRunning = false; }
   }
-  requestAnimationFrame(renderDrawings);
+  ensureDrawLoopRunning();
 
   // ===== Hit-test (chọn / xoá bản vẽ) =====
   function distToSeg(px, py, x1, y1, x2, y2) {
@@ -1692,7 +1781,7 @@
     }
     return false;
   }
-  function hitTest(x, y) { const tol = 8; for (let i = drawings.length - 1; i >= 0; i--) if (hitTestOne(drawings[i], x, y, tol)) return drawings[i]; return null; }
+  function hitTest(x, y) { for (let i = drawings.length - 1; i >= 0; i--) if (hitTestOne(drawings[i], x, y, HIT_TOL)) return drawings[i]; return null; }
   function addDrawing(obj) { obj.id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); normalizeDrawing(obj); drawings.push(obj); saveDrawings(); return obj; }
   function removeDrawing(id) { drawings = drawings.filter(d => d.id !== id); saveDrawings(); }
 
@@ -1702,7 +1791,7 @@
   toolBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       toolBtns.forEach(b => b.classList.remove('active')); btn.classList.add('active');
-      currentTool = btn.getAttribute('data-tool'); pendingPoints = []; previewPoint = null; selectedId = null;
+      currentTool = btn.getAttribute('data-tool'); pendingPoints = []; previewPoint = null; selectedId = null; lastPolyClick = null;
       chartPrice.applyOptions({ crosshair: { mode: currentTool === 'cursor' ? LightweightCharts.CrosshairMode.Normal : LightweightCharts.CrosshairMode.Magnet } });
       document.getElementById('chart-price').style.cursor = currentTool === 'cursor' ? 'default' : 'crosshair';
       updateDrawHint();
@@ -1732,7 +1821,7 @@
     if (currentTool === 'cursor' && selectedId && !dragDrawing) {
       const d = getSelectedDrawing();
       const host = document.getElementById('chart-price');
-      if (d && !isDrawLocked(d) && hitTestOne(d, param.point.x, param.point.y, 10)) host.style.cursor = 'move';
+      if (d && !isDrawLocked(d) && hitTestOne(d, param.point.x, param.point.y, HANDLE_TOL)) host.style.cursor = 'move';
       else host.style.cursor = 'default';
     }
   });
@@ -1753,7 +1842,16 @@
       if (txt && txt.trim()) addDrawing({ type: 'text', points: [pt], text: txt.trim().slice(0, 140), color: drawColor() });
       resetToolAfterUse(); return;
     }
-    if (currentTool === 'polyline') { pendingPoints.push(pt); return; }
+    if (currentTool === 'polyline') {
+      const now = Date.now();
+      const isDouble = lastPolyClick && (now - lastPolyClick.t) < 400 && Math.hypot(param.point.x - lastPolyClick.x, param.point.y - lastPolyClick.y) < 14;
+      lastPolyClick = { t: now, x: param.point.x, y: param.point.y };
+      if (isDouble && pendingPoints.length >= 2) {
+        addDrawing({ type: 'polyline', points: pendingPoints.slice(), color: drawColor() });
+        pendingPoints = []; lastPolyClick = null; resetToolAfterUse(); return;
+      }
+      pendingPoints.push(pt); return;
+    }
 
     pendingPoints.push(pt);
     const need = TOOL_POINTS[currentTool] || 2;
@@ -1766,12 +1864,35 @@
   document.addEventListener('keydown', e => {
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if (e.key === 'Escape') { pendingPoints = []; previewPoint = null; selectedId = null; document.querySelector('.tool-btn[data-tool="cursor"]').click(); }
+    if (e.key === 'Escape') { pendingPoints = []; previewPoint = null; selectedId = null; lastPolyClick = null; document.querySelector('.tool-btn[data-tool="cursor"]').click(); }
     if (e.key === 'Enter' && currentTool === 'polyline' && pendingPoints.length >= 2) { addDrawing({ type: 'polyline', points: pendingPoints.slice(), color: drawColor() }); pendingPoints = []; resetToolAfterUse(); }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
       const d = getSelectedDrawing();
       if (isDrawLocked(d)) { showDrawToast('Bản vẽ đang bị khoá — mở khoá để xoá'); return; }
       removeDrawing(selectedId); selectedId = null;
+    }
+    // Mũi tên: nhích bản vẽ đang chọn theo pixel màn hình (giữ Shift để nhích nhanh hơn) — giống TradingView
+    if (selectedId && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      const d = getSelectedDrawing(); if (!d || isDrawLocked(d)) return;
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      const dxPx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+      const dyPx = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+      d.points = d.points.map(pt => {
+        const p = xy(pt); if (!p) return pt;
+        const tp = coordToTimePrice(p.x + dxPx, p.y + dyPx);
+        return (tp.time == null || tp.price == null) ? pt : { time: tp.time, price: tp.price };
+      });
+      saveDrawings(); ensureDrawLoopRunning();
+    }
+    // Ctrl/Cmd+D: nhân bản bản vẽ đang chọn — giống phím tắt của TradingView
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedId) {
+      e.preventDefault();
+      const d = getSelectedDrawing(); if (!d) return;
+      const clone = JSON.parse(JSON.stringify(d));
+      delete clone.id; clone.locked = false;
+      clone.points = (clone.points || []).map(p => ({ ...p, price: p.price ? p.price * 1.006 : p.price }));
+      const added = addDrawing(clone); selectedId = added.id; ensureDrawLoopRunning();
     }
   });
 
@@ -1785,7 +1906,7 @@
   });
 
   // Cho phép updateChart() nạp lại đúng bộ bản vẽ khi đổi mã coin
-  window.__drawSystemOnSymbolChange = function () { loadDrawings(); selectedId = null; pendingPoints = []; previewPoint = null; };
+  window.__drawSystemOnSymbolChange = function () { loadDrawings(); selectedId = null; pendingPoints = []; previewPoint = null; ensureDrawLoopRunning(); };
 
   // ===== Kéo-thả để DI CHUYỂN hoặc CHỈNH SỬA bản vẽ đã chọn (giống các sàn lớn) =====
   // Kéo vào thân bản vẽ -> di chuyển toàn bộ. Kéo vào 1 chấm neo -> chỉnh lại điểm đó. Bị khoá thì không kéo được.
@@ -1801,9 +1922,13 @@
     const d = getSelectedDrawing(); if (!d || isDrawLocked(d)) return;
     const rect = chartPriceEl.getBoundingClientRect();
     const x = e.clientX - rect.left, y = e.clientY - rect.top;
-    let idx = -1;
-    (d.points || []).forEach((pt, i) => { const p = xy(pt); if (p && Math.hypot(x - p.x, y - p.y) <= 10) idx = i; });
-    if (idx === -1 && !hitTestOne(d, x, y, 8)) return;
+    let idx = -1, bestDist = Infinity;
+    (d.points || []).forEach((pt, i) => { const p = xy(pt); if (!p) return; const dist = Math.hypot(x - p.x, y - p.y); if (dist <= HANDLE_TOL && dist < bestDist) { bestDist = dist; idx = i; } });
+    if (idx === -1 && !hitTestOne(d, x, y, HIT_TOL)) return;
+    // Khoá pan/zoom NGAY khi vừa nhận diện được điểm/thân sẽ kéo (không đợi di chuyển đủ 3px) —
+    // tránh tình trạng biểu đồ "giật" pan 1 chút trước khi vào chế độ kéo bản vẽ trên cảm ứng.
+    chartPrice.applyOptions({ handleScroll: false, handleScale: false });
+    e.preventDefault();
     dragDrawing = d; dragPointIndex = idx; dragOriginalPoints = d.points.map(p => ({ ...p }));
     dragStartTP = coordToTimePrice(x, y); dragStartXY = { x, y }; isDragging = false;
     try { chartPriceEl.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1899,8 +2024,11 @@
 
   function renderWhaleLogs() {
     const list = document.getElementById('whale-log-list'); list.innerHTML = '';
-    if (whaleLogs.length === 0) { list.innerHTML = '<div class="ai-empty">Chưa có dữ liệu cá mập...</div>'; return; }
-    const recent = whaleLogs.slice().reverse();
+    // Chỉ hiển thị nhật ký của đúng coin đang xem — dữ liệu các coin khác vẫn được ghi nhận
+    // ở nền (xem startMarketWhaleWatcher) nhưng không hiện ra cho tới khi người dùng chuyển sang coin đó.
+    const coinLogs = whaleLogs.filter(log => log.symbol === currentSymbol);
+    if (coinLogs.length === 0) { list.innerHTML = `<div class="ai-empty">Chưa có dữ liệu cá mập cho ${currentSymbol.replace('USDT','')}...</div>`; return; }
+    const recent = coinLogs.slice().reverse();
     recent.forEach(log => {
       const row = document.createElement('div'); row.className = 'signal-row';
       const tone = log.isBuy ? 'up' : 'down'; const label = log.isBuy ? 'CÁ MẬP MUA' : 'CÁ MẬP BÁN';
@@ -1917,8 +2045,62 @@
     container.appendChild(toast); requestAnimationFrame(() => toast.classList.add('show'));
     setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 6000);
     whaleLogs.push({ time: Date.now(), isBuy, usd: usdAmount, price, symbol });
-    if (whaleLogs.length > 50) whaleLogs.shift();
+    if (whaleLogs.length > MAX_WHALE_LOGS) whaleLogs.shift();
     localStorage.setItem('ok_whale_logs', JSON.stringify(whaleLogs)); renderWhaleLogs();
+  }
+
+  // ==========================================
+  // GIÁM SÁT NỀN CÁ MẬP TOÀN THỊ TRƯỜNG
+  // Coin đang xem trên biểu đồ đã có kết nối riêng (whaleWS trong updateChart) để hiện toast + gauge.
+  // Kết nối multiplex dưới đây gộp aggTrade của TẤT CẢ cặp USDT trên Binance vào 1 socket duy nhất,
+  // chạy độc lập, không phụ thuộc coin đang xem — để nhật ký cá mập của các coin KHÔNG được xem
+  // vẫn tiếp tục được cập nhật âm thầm (không toast, không cần vẽ lại UI) và sẵn sàng hiện ra
+  // ngay khi người dùng chuyển sang xem đúng coin đó.
+  // ==========================================
+  let marketWhaleWS = null;
+  let marketWhaleReconnectTimeout = null;
+  const MARKET_WHALE_STREAM_CAP = 1000; // Binance giới hạn tối đa 1024 stream / 1 kết nối multiplex
+  // localStorage.setItem là thao tác ĐỒNG BỘ (chặn luồng chính). Khi thị trường biến động mạnh,
+  // hàng trăm coin có thể sinh lệnh cá mập dồn dập trong 1 giây -> nếu ghi localStorage ngay mỗi
+  // lệnh sẽ gây giật rõ rệt. Gộp lại, chỉ ghi ổ đĩa tối đa 1 lần / 2 giây.
+  let whaleLogPersistPending = false;
+  function persistWhaleLogsThrottled() {
+    if (whaleLogPersistPending) return;
+    whaleLogPersistPending = true;
+    setTimeout(() => { whaleLogPersistPending = false; try { localStorage.setItem('ok_whale_logs', JSON.stringify(whaleLogs)); } catch (e) {} }, 2000);
+  }
+
+  function startMarketWhaleWatcher() {
+    if (!allMarketSymbols.length) return; // Chờ tải xong danh sách toàn bộ coin USDT trên Binance
+    if (marketWhaleWS) { marketWhaleWS.onclose = null; marketWhaleWS.close(); }
+    const streams = allMarketSymbols.slice(0, MARKET_WHALE_STREAM_CAP).map(s => s.symbol.toLowerCase() + '@aggTrade').join('/');
+    marketWhaleWS = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+    marketWhaleWS.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        const d = msg && msg.data; if (!d || !d.s) return;
+        const symbol = d.s;
+        // Coin đang xem đã được ghi nhận (kèm toast + gauge) qua kết nối riêng trong updateChart(),
+        // bỏ qua ở đây để tránh ghi trùng lệnh 2 lần.
+        if (symbol === currentSymbol) return;
+        const p = parseFloat(d.p); const q = parseFloat(d.q); const isBuy = !d.m; const usd = p * q;
+        const dynamicThreshold = getWhaleThreshold(symbol);
+        if (usd >= dynamicThreshold) {
+          whaleLogs.push({ time: Date.now(), isBuy, usd, price: p, symbol });
+          if (whaleLogs.length > MAX_WHALE_LOGS) whaleLogs.shift();
+          persistWhaleLogsThrottled();
+          // Không hiện toast và không vẽ lại danh sách ở đây vì coin này không đang được xem —
+          // tránh giật máy/spam. Danh sách sẽ tự hiện đúng dữ liệu ngay khi đổi sang coin đó (xem updateChart).
+        }
+      } catch (e) { /* Bỏ qua gói tin lỗi định dạng */ }
+    };
+    marketWhaleWS.onerror = handleMarketWhaleDisconnect;
+    marketWhaleWS.onclose = handleMarketWhaleDisconnect;
+  }
+  function handleMarketWhaleDisconnect() {
+    if (marketWhaleReconnectTimeout) return;
+    console.warn("Mất kết nối giám sát cá mập toàn thị trường. Kết nối lại sau 5s...");
+    marketWhaleReconnectTimeout = setTimeout(() => { marketWhaleReconnectTimeout = null; startMarketWhaleWatcher(); }, 5000);
   }
 
   function computeSMA(values, period) { let sma = new Array(values.length).fill(0); let sum = 0; for(let i=0; i<values.length; i++) { sum += values[i]; if(i >= period) sum -= values[i - period]; if(i >= period - 1) sma[i] = sum / period; } return sma; }
@@ -2135,6 +2317,9 @@
     if (whaleWS) { whaleWS.onclose = null; whaleWS.close(); }
     if (reconnectTimeout) clearTimeout(reconnectTimeout); if (syncInterval) clearInterval(syncInterval);
     if (typeof window.__drawSystemOnSymbolChange === 'function') window.__drawSystemOnSymbolChange();
+    // Đổi coin -> lọc lại nhật ký cá mập để chỉ hiện đúng dữ liệu của coin vừa chọn ngay lập tức
+    // (dữ liệu của các coin khác vẫn được giữ nguyên, đang được ghi nhận ở nền).
+    if (typeof renderWhaleLogs === 'function') renderWhaleLogs();
 
     fetchSyncData(); syncInterval = setInterval(fetchSyncData, 45 * 1000); fetchBinanceSentiment(currentSymbol);
 
@@ -2209,7 +2394,7 @@
   document.getElementById('color-down').addEventListener('input', e => { currentDownColor = e.target.value; localStorage.setItem('ok_downColor', currentDownColor); updateCSSVariables(currentUpColor, currentDownColor); candleSeries.applyOptions({ downColor: currentDownColor, wickDownColor: currentDownColor }); updateChart(); });
   document.getElementById('btn-screenshot').addEventListener('click', () => { const a = document.createElement('a'); a.href = chartPrice.takeScreenshot().toDataURL('image/png'); a.download = `OngKinh_${currentSymbol}.png`; a.click(); });
   
-  let isResizing = false; let startY = 0; let startH1 = 0; let startH2 = 0; let resizeTargetPane = null;
+  let isResizing = false; let startY = 0; let startH1 = 0; let startH2 = 0; let resizeTargetPane = null; let paneResizeRAF = null;
   document.getElementById('pane-resizer').addEventListener('mousedown', e => {
     const firstPane = document.getElementById('pane-resizer').nextElementSibling;
     if (!firstPane || !firstPane.classList.contains('sub-pane')) return;
@@ -2217,8 +2402,19 @@
     isResizing = true; startY = e.clientY; startH1 = document.getElementById('chart-price').clientHeight; startH2 = document.getElementById(resizeTargetPane.elId).clientHeight;
     document.body.style.cursor = 'row-resize'; e.preventDefault();
   });
-  window.addEventListener('mousemove', e => { if (!isResizing || !resizeTargetPane) return; const dy = e.clientY - startY; const h1 = startH1 + dy; const h2 = startH2 - dy; if (h1 > 100 && h2 > 60) { document.getElementById('chart-price').style.height = h1+'px'; document.getElementById(resizeTargetPane.elId).style.height = h2+'px'; chartPrice.applyOptions({ height: h1 }); resizeTargetPane.chart.applyOptions({ height: h2 }); } });
-  window.addEventListener('mouseup', () => { if (isResizing) { isResizing = false; resizeTargetPane = null; document.body.style.cursor = 'default'; } });
+  // Gộp các sự kiện mousemove dồn dập trong lúc kéo thanh chia pane lại thành tối đa 1 lần cập
+  // nhật / khung hình (thay vì cập nhật DOM + chart mỗi lần chuột nhích, dễ gây giật khi chuột nhạy).
+  window.addEventListener('mousemove', e => {
+    if (!isResizing || !resizeTargetPane) return;
+    const clientY = e.clientY;
+    if (paneResizeRAF) return;
+    paneResizeRAF = requestAnimationFrame(() => {
+      paneResizeRAF = null;
+      const dy = clientY - startY; const h1 = startH1 + dy; const h2 = startH2 - dy;
+      if (h1 > 100 && h2 > 60) { document.getElementById('chart-price').style.height = h1+'px'; document.getElementById(resizeTargetPane.elId).style.height = h2+'px'; chartPrice.applyOptions({ height: h1 }); resizeTargetPane.chart.applyOptions({ height: h2 }); }
+    });
+  });
+  window.addEventListener('mouseup', () => { if (isResizing) { isResizing = false; resizeTargetPane = null; document.body.style.cursor = 'default'; if (paneResizeRAF) { cancelAnimationFrame(paneResizeRAF); paneResizeRAF = null; } } });
 
   // (Kéo-thả đổi vị trí pane đã được thiết lập ở phần khởi tạo hệ thống chỉ báo phía trên)
 
