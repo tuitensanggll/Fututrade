@@ -552,9 +552,12 @@
   const commonOptions = {
     layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#7c8598', attributionLogo: false },
     grid: { vertLines: { color: '#171c27' }, horzLines: { color: '#171c27' } },
+    // Ép nhãn crosshair (đường kẻ dọc bám con trỏ) dùng CÙNG hàm giờ địa phương với tooltip — trước đây thư
+    // viện tự định dạng theo UTC nên lệch múi giờ so với tooltip tự viết bên dưới.
+    localization: { timeFormatter: crosshairTimeFormatter },
     rightPriceScale: { minimumWidth: 90, alignLabels: true, scaleMargins: { top: 0.15, bottom: 0.15 } },
     crosshair: {
-      mode: LightweightCharts.CrosshairMode.Normal,
+      mode: LightweightCharts.CrosshairMode.Magnet,
       vertLine: {
         color: '#7c8598',
         style: LightweightCharts.LineStyle.Dashed,
@@ -575,14 +578,14 @@
       }
     }
   };
-  const chartPrice = LightweightCharts.createChart(document.getElementById('chart-price'), { ...commonOptions, timeScale: { timeVisible: true, visible: false, rightOffset: 12 } });
+  const chartPrice = LightweightCharts.createChart(document.getElementById('chart-price'), { ...commonOptions, timeScale: { timeVisible: true, visible: false, rightOffset: 0, tickMarkFormatter: axisTickFormatter } });
   const candleSeries = chartPrice.addSeries(LightweightCharts.CandlestickSeries, { upColor: currentUpColor, downColor: currentDownColor, borderVisible: false, wickUpColor: currentUpColor, wickDownColor: currentDownColor });
   const candleSeriesMarkers = LightweightCharts.createSeriesMarkers(candleSeries, []);
   const volumePane = document.getElementById('chart-volume');
   const chartVolume = LightweightCharts.createChart(volumePane, {
     ...commonOptions,
-    crosshair: { ...commonOptions.crosshair, mode: LightweightCharts.CrosshairMode.Normal },
-    timeScale: { timeVisible: true, visible: false, rightOffset: 0 },
+    crosshair: { ...commonOptions.crosshair, mode: LightweightCharts.CrosshairMode.Magnet },
+    timeScale: { timeVisible: true, visible: false, rightOffset: 0, tickMarkFormatter: axisTickFormatter },
     leftPriceScale: { visible: false, borderVisible: false, minWidth: 0 },
     rightPriceScale: { visible: true, borderVisible: false, alignLabels: true, minimumWidth: 90, scaleMargins: { top: 0.15, bottom: 0.15 } }
   });
@@ -674,7 +677,7 @@
   function saveIndicators() { localStorage.setItem('ok_indicators_v2', JSON.stringify(indicators)); }
 
   // ===== CHART RSI mặc định (pane có sẵn) =====
-  const chartRSI = LightweightCharts.createChart(document.getElementById('chart-rsi'), { ...commonOptions, crosshair: { ...commonOptions.crosshair, mode: LightweightCharts.CrosshairMode.Normal }, timeScale: { timeVisible: true }, rightPriceScale: { minimumWidth: 90, scaleMargins: { top: 0.15, bottom: 0.15 } } });
+  const chartRSI = LightweightCharts.createChart(document.getElementById('chart-rsi'), { ...commonOptions, crosshair: { ...commonOptions.crosshair, mode: LightweightCharts.CrosshairMode.Magnet }, timeScale: { timeVisible: true, rightOffset: 0, tickMarkFormatter: axisTickFormatter }, rightPriceScale: { minimumWidth: 90, scaleMargins: { top: 0.15, bottom: 0.15 } } });
 
   const paneRegistry = {
     price: { chart: chartPrice, elId: 'chart-price' },
@@ -730,16 +733,14 @@
   function syncCrosshairAcrossCharts(sourcePaneId, time) {
     Object.entries(paneRegistry).forEach(([paneId, reg]) => {
       if (!reg || paneId === sourcePaneId) return;
-      const value = getPaneCrosshairValue(paneId, time);
-      const series = getPaneCrosshairSeries(paneId);
-      if (value === null || series === null) { reg.chart.clearCrosshairPosition(); return; }
-      reg.chart.setCrosshairPosition(value, time, series);
+      // Đồng bộ mốc thời gian tuyệt đối giữa các pane
+      reg.chart.setCrosshairPosition(0, time, getPaneCrosshairSeries(paneId));
     });
   }
   function attachCrosshairSync(chart, paneId) {
     chart.subscribeCrosshairMove(param => {
       if (isResizing) return;
-      if (!isChartPointValid(paneId, param)) { clearAllCrosshairs(); if (paneId === 'price') tooltip.style.display = 'none'; updateAllLegendValues(); return; }
+      if (!isChartPointValid(paneId, param)) { clearAllCrosshairs(); updateAllLegendValues(); return; }
       syncCrosshairAcrossCharts(paneId, param.time);
       updateAllLegendValues(param.time);
     });
@@ -895,7 +896,39 @@
   }
   function fmt(n){ if (n === null || n === undefined || !isFinite(n)) return '--'; const d = computePriceDecimals(n); return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
   function fmtVol(n){ if(n>=1e9) return (n/1e9).toFixed(2)+'B'; if(n>=1e6) return (n/1e6).toFixed(2)+'M'; if(n>=1e3) return (n/1e3).toFixed(2)+'K'; return n.toFixed(2); }
-  function fmtTime(t){ return new Date(t*1000).toLocaleString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+  function fmtTime(t){
+    const d = new Date(t * 1000);
+    return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  // =========================================================
+  // ĐỒNG BỘ THỜI GIAN TUYỆT ĐỐI GIỮA TOOLTIP <-> NHÃN CROSSHAIR <-> TRỤC THỜI GIAN
+  // ---------------------------------------------------------
+  // Nguyên nhân lỗi lệch giờ trước đây: tooltip dùng toLocaleString() -> giờ ĐỊA PHƯƠNG của máy người xem,
+  // trong khi trục thời gian & nhãn crosshair của lightweight-charts dùng bộ định dạng MẶC ĐỊNH của thư viện,
+  // vốn luôn tính theo UTC bất kể múi giờ trình duyệt. Với người xem ở Việt Nam (UTC+7) thì 2 nơi lệch nhau
+  // đúng 7 tiếng — y hệt hiện tượng "07:30" ở tooltip nhưng trục dưới lại hiện giờ khác.
+  // Cách fix chuẩn (giống Binance/OKX): TẤT CẢ nơi hiển thị thời gian phải dùng chung 1 nguồn giờ — ở đây
+  // chọn giờ địa phương của thiết bị người xem (real-time, đúng theo đồng hồ máy, chính xác từng phút vì
+  // nến Binance trả về là mốc giây UTC epoch chuẩn, chỉ khác nhau ở cách CONVERT sang hiển thị).
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  // Định dạng nhãn trên TRỤC thời gian ngang (tick cố định) — thay cho bộ định dạng UTC mặc định của thư viện.
+  function axisTickFormatter(time, tickMarkType) {
+    const d = new Date(time * 1000);
+    const TMT = (typeof LightweightCharts !== 'undefined' && LightweightCharts.TickMarkType) || {};
+    switch (tickMarkType) {
+      case TMT.Year: return String(d.getFullYear());
+      case TMT.Month: return pad2(d.getMonth() + 1) + '/' + d.getFullYear();
+      case TMT.DayOfMonth: return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
+      case TMT.TimeWithSeconds: return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+      default: return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    }
+  }
+  // Định dạng nhãn thời gian đi kèm đường crosshair (đường kẻ dọc bám theo con trỏ) — phải khớp 1-1 với tooltip.
+  function crosshairTimeFormatter(time) {
+    const d = new Date(time * 1000);
+    return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
 
   // ===== Đồng bộ số lẻ trên TRỤC (không chỉ chữ số trong tooltip/legend) cho khung giá + chỉ báo vẽ đè lên giá =====
   // RSI/Stochastic giữ nguyên thang 0-100 mặc định (đã chuẩn), chỉ giá (candles), SMA/EMA/BB và MACD mới cần co giãn
@@ -1066,8 +1099,8 @@
     wrapper.appendChild(paneEl);
     const chart = LightweightCharts.createChart(document.getElementById('chart-' + id), {
       ...commonOptions,
-      crosshair: { ...commonOptions.crosshair, mode: LightweightCharts.CrosshairMode.Normal },
-      timeScale: { timeVisible: true },
+      crosshair: { ...commonOptions.crosshair, mode: LightweightCharts.CrosshairMode.Magnet },
+      timeScale: { timeVisible: true, rightOffset: 0, tickMarkFormatter: axisTickFormatter },
       leftPriceScale: { visible: false, borderVisible: false },
       rightPriceScale: { minimumWidth: 90, scaleMargins: { top: 0.15, bottom: 0.15 } }
     });
@@ -1577,7 +1610,11 @@
   // API gốc timeToCoordinate/coordinateToTime của thư viện chỉ hoạt động chính xác trong vùng có nến thật.
   // Dùng logical index (coordinateToLogical/logicalToCoordinate) thì có thể ngoại suy ra cả vùng trống bên phải
   // (sau cây nến mới nhất) và bên trái, nhờ đó vẽ được ở BẤT KỲ đâu trong khung chart, không bị giới hạn.
-  const INTERVAL_SEC = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 };
+  const INTERVAL_SEC = {
+    '1m': 60, '3m': 180, '5m': 300, '15m': 900, '30m': 1800,
+    '1h': 3600, '2h': 7200, '4h': 14400, '6h': 21600, '8h': 28800, '12h': 43200,
+    '1d': 86400, '3d': 259200, '1w': 604800, '1M': 2592000
+  };
   function intervalSeconds() { return INTERVAL_SEC[currentInterval] || 14400; }
   function logicalToTime(logical) {
     if (!candlesData.length || logical == null) return null;
@@ -1971,59 +2008,13 @@
   chartPriceEl.addEventListener('pointercancel', endDrag);
   chartPriceEl.addEventListener('pointerleave', e => { if (dragDrawing && !isDragging) endDrag(e); });
 
-  const tooltip = document.createElement('div');
-  tooltip.style = `position: absolute; display: none; padding: 10px; box-sizing: border-box; font-size: 13px; color: #fff; background-color: rgba(23, 28, 39, 0.95); border: 1px solid #2d3342; border-radius: 8px; pointer-events: none; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); font-family: sans-serif;`;
-  document.getElementById('chart-price').appendChild(tooltip);
-
   chartPrice.subscribeCrosshairMove(param => {
-    if (isResizing) { tooltip.style.display = 'none'; return; }
+    if (isResizing) { return; }
     if (!param.time || param.point === undefined || param.point.x < 0 || param.point.y < 0 || param.point.x > document.getElementById('chart-price').clientWidth || param.point.y > document.getElementById('chart-price').clientHeight) {
-      clearAllCrosshairs(); tooltip.style.display = 'none'; updateAllLegendValues(); return;
+      clearAllCrosshairs(); updateAllLegendValues(); return;
     }
     syncCrosshairAcrossCharts('price', param.time);
     updateAllLegendValues(param.time);
-    const volData = volumesDataMap.get(param.time);
-    const c = candlesDataMap.get(param.time);
-    if (!c) { tooltip.style.display = 'none'; return; }
-    const isUp = c.close >= c.open; const color = isUp ? currentUpColor : currentDownColor;
-    
-    let html = `<div style="font-weight:700; margin-bottom: 8px; border-bottom: 1px solid #2d3342; padding-bottom:6px">${fmtTime(param.time)}</div>`;
-    html += `<div style="display:flex; justify-content:space-between; width:140px; margin-bottom: 4px;"><span>Mở:</span> <span style="color:${color}">${fmt(c.open)}</span></div>`;
-    html += `<div style="display:flex; justify-content:space-between; width:140px; margin-bottom: 4px;"><span>Cao:</span> <span style="color:${color}">${fmt(c.high)}</span></div>`;
-    html += `<div style="display:flex; justify-content:space-between; width:140px; margin-bottom: 4px;"><span>Thấp:</span> <span style="color:${color}">${fmt(c.low)}</span></div>`;
-    html += `<div style="display:flex; justify-content:space-between; width:140px; margin-bottom: 4px;"><span>Đóng:</span> <span style="color:${color}; font-weight:bold">${fmt(c.close)}</span></div>`;
-    if(volData) html += `<div style="display:flex; justify-content:space-between; width:140px; margin-top:6px;"><span>Vol:</span> <span>${fmtVol(volData.value)}</span></div>`;
-    
-    if (aiEnabled) {
-        const sigList = signalsMap.get(param.time);
-        if (sigList && sigList.length) {
-           sigList.forEach(signal => {
-             html += `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed ${signal.color};">`;
-             html += `<div style="display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.5px; color:#0a0d13; background:${signal.color}; padding:1px 6px; border-radius:4px; margin-bottom:4px;">${signalCategoryLabel(signal)}</div>`;
-             html += `<div style="color:${signal.color}; font-weight:bold; font-size: 13px; display:flex; align-items:center;">${icon(signalIconName(signal), 'ico-inline')}${signal.label}</div>`;
-             html += `<div style="color:#a9b1c2; font-size:11.5px; margin-top:4px; max-width: 240px; white-space: normal; line-height: 1.45; font-family:'JetBrains Mono', monospace;">`;
-             if (signal.entry) {
-                html += `<span style="color:var(--up)">${icon('dot','ico-inline')}Entry: ${fmt(signal.entry)}</span><br>`;
-                html += `<span style="color:var(--gold)">${icon('dot','ico-inline')}Target: ${fmt(signal.target)}</span><br>`;
-                html += `<span style="color:var(--down)">${icon('dot','ico-inline')}SL(Động): ${fmt(signal.sl)}</span><br>`;
-             }
-             html += `<div style="margin-top:6px; color:#8b93a7; font-family:'Inter', sans-serif; font-weight:500; font-size:11px; line-height:1.55; display:flex; gap:5px; align-items:flex-start;">${icon('pin', 'ico-inline')}<span>${getProNote(signal)}</span></div>`;
-             html += `</div></div>`;
-           });
-        }
-    }
-    tooltip.innerHTML = html; tooltip.style.display = 'block';
-    const chartEl = document.getElementById('chart-price');
-    let x = param.point.x; let y = param.point.y;
-    const tooltipW = tooltip.offsetWidth || 160; const tooltipH = tooltip.offsetHeight || 120;
-    const chartW = chartEl.clientWidth; const chartH = chartEl.clientHeight;
-    // Căn trái/phải và trên/dưới theo mép chart để tooltip không bao giờ bị cắt/tràn ra ngoài
-    if (x + tooltipW + 20 > chartW) { x = x - tooltipW - 15; } else { x = x + 15; }
-    x = Math.max(4, Math.min(x, chartW - tooltipW - 4));
-    let top = y + 15;
-    if (top + tooltipH + 10 > chartH) { top = y - tooltipH - 15; }
-    top = Math.max(4, Math.min(top, chartH - tooltipH - 4));
-    tooltip.style.left = x + 'px'; tooltip.style.top = top + 'px';
   });
 
   attachCrosshairSync(chartVolume, 'volume');
@@ -2446,18 +2437,29 @@
         syncPriceScaleWidths();
         candlesDataMap.set(time, liveCandle); volumesDataMap.set(time, liveVolume);
         const lastIdx = candlesData.length - 1;
-        if (lastIdx >= 0 && candlesData[lastIdx].time === time){ candlesData[lastIdx] = liveCandle; volumesData[lastIdx] = liveVolume; } 
+        const isBrandNewBar = !(lastIdx >= 0 && candlesData[lastIdx].time === time);
+        if (!isBrandNewBar){ candlesData[lastIdx] = liveCandle; volumesData[lastIdx] = liveVolume; } 
         else { candlesData.push(liveCandle); volumesData.push(liveVolume); }
         // Tính lại chỉ báo tối đa mỗi 400ms khi nến đang chạy (throttle) — nến vừa đóng thì luôn tính đủ ngay lập tức.
         // Trước đây gọi lại TOÀN BỘ chỉ báo trên TOÀN BỘ lịch sử nến mỗi khi có 1 tick giá (nhiều lần/giây) —
         // đây là nguyên nhân chính gây giật/lag, đặc biệt trên điện thoại có CPU yếu hơn máy tính.
+        //
+        // FIX lệch giờ tooltip vs trục dưới: khi một cây nến MỚI vừa mở (isBrandNewBar), candlesData/candlesDataMap
+        // đã có mốc thời gian mới NGAY LẬP TỨC (dùng cho tooltip), nhưng nếu vẫn chờ throttle 400ms thì các pane
+        // phụ (RSI/EMA/MACD...) — vốn chỉ nhận dữ liệu mới qua updateAllIndicators() — sẽ tạm thời "chưa có" mốc
+        // giờ mới đó. Lúc đó setCrosshairPosition() ở các pane phụ tự snap về cây nến CŨ gần nhất -> trục thời
+        // gian bên dưới hiện giờ của nến trước, còn tooltip đã hiện giờ của nến mới -> lệch đúng 1 khung nến.
+        // Nên: nến mới mở -> luôn cập nhật chỉ báo NGAY, bỏ qua throttle. Throttle chỉ áp dụng khi vẫn là CÙNG
+        // 1 cây nến đang chạy (mốc giờ không đổi, không có gì để pane phụ bị lệch trục thời gian).
         const nowTs = Date.now();
-        if (kline.x === true || nowTs - lastIndicatorUpdateTs > 400) {
+        if (isBrandNewBar || kline.x === true || nowTs - lastIndicatorUpdateTs > 400) {
           lastIndicatorUpdateTs = nowTs;
           updateAllIndicators();
         }
         const upd = document.getElementById('stat-updated'); if (upd) upd.innerText = new Date().toLocaleTimeString('vi-VN');
-        if (kline.x === true) { isLiveSignalPreview = false; runAIAnalysis(); } else { scheduleLiveAIAnalysis(); }
+        if (kline.x === true) { isLiveSignalPreview = false; runAIAnalysis(); }
+        else if (isBrandNewBar) { isLiveSignalPreview = true; runAIAnalysis(); } // nến mới mở -> tính tín hiệu ngay, khỏi chờ throttle 3s
+        else { scheduleLiveAIAnalysis(); }
       };
       
       whaleWS = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@aggTrade`);
