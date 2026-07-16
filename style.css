@@ -36,6 +36,8 @@
   .brand-mark{ width:34px; height:34px; border-radius:9px; background:linear-gradient(145deg, var(--accent), #7c5cff); display:flex; align-items:center; justify-content:center; font-family:'Sora', sans-serif; font-weight:800; font-size:15px; color:#fff; box-shadow:0 4px 18px -4px #3d8bff70; }
   .brand-text{ font-family:'Sora', sans-serif; font-weight:700; font-size:16px; letter-spacing:0.2px; }
   .brand-text span{ color:var(--text-dim); font-weight:500; font-size:12px; display:block; margin-top:1px; letter-spacing:0.4px;}
+  .brand-privacy-link{ display:block; margin-top:3px; font-size:11px; font-weight:500; color:var(--text-dim); text-decoration:none; letter-spacing:0.2px; opacity:0.75; transition:opacity .15s, color .15s; width:max-content; }
+  .brand-privacy-link:hover{ opacity:1; color:var(--accent); text-decoration:underline; }
 
   /* PROFILE WIDGET */
   .profile-wrap{ position:relative; margin-left:4px; }
@@ -227,8 +229,8 @@
   .draw-hint{ position:absolute; top:6px; left:50%; transform:translateX(-50%); z-index:6; background:#0e131be6; border:1px solid var(--border); color:var(--text-dim); font-size:11px; padding:5px 12px; border-radius:6px; display:none; pointer-events:none; white-space:nowrap; }
   .draw-toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:#0e131bf0; border:1px solid var(--border); color:var(--text); font-size:12.5px; padding:9px 16px; border-radius:8px; z-index:10050; opacity:0; transition:opacity .2s; pointer-events:none; }
   .draw-toast.show{ opacity:1; }
-  .draw-obj-toolbar{ position:absolute; z-index:8; display:none; align-items:center; gap:3px; background:#12161fee; border:1px solid var(--border); border-radius:9px; padding:4px; box-shadow:0 6px 18px rgba(0,0,0,.55); backdrop-filter:blur(6px); touch-action:manipulation; }
-  .draw-obj-toolbar.show{ display:flex; }
+  .draw-obj-toolbar{ position:absolute; z-index:8; display:flex; align-items:center; gap:3px; background:#12161fee; border:1px solid var(--border); border-radius:9px; padding:4px; box-shadow:0 6px 18px rgba(0,0,0,.55); backdrop-filter:blur(6px); touch-action:manipulation; opacity:0; transform:translateY(4px) scale(.96); pointer-events:none; transition:opacity .12s ease, transform .12s ease; }
+  .draw-obj-toolbar.show{ opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
   .draw-obj-toolbar button{ width:26px; height:24px; border:none; border-radius:6px; background:transparent; color:var(--text-dim); font-size:11px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s, color .15s; font-family:"JetBrains Mono", monospace; }
   .draw-obj-toolbar button:hover{ background:var(--surface-alt); color:var(--text); }
   .draw-obj-toolbar button.toggle-on{ background:rgba(240,185,11,0.18); color:var(--gold); }
@@ -238,6 +240,20 @@
   .draw-obj-toolbar .dot-swatch-inner{ width:15px; height:15px; border-radius:50%; border:2px solid #0e131b; box-shadow:0 0 0 1px rgba(255,255,255,.25); display:block; }
   .draw-obj-toolbar .dot-color-input{ position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
   .draw-obj-toolbar [data-act="width"]{ min-width:30px; }
+
+  /* Vùng chạm lớn hơn cho ngón tay trên thiết bị cảm ứng (điện thoại/tablet), giữ nguyên
+     kích thước gọn cho chuột trên desktop — giống cách TradingView co giãn toolbar theo thiết bị. */
+  @media (pointer: coarse) {
+    .tool-btn{ width:38px; height:38px; }
+    .tool-btn svg{ width:19px; height:19px; }
+    .drawing-toolbar{ width:48px; gap:7px; }
+    .toolbar-divider{ width:26px; }
+    .draw-obj-toolbar{ padding:6px; gap:5px; }
+    .draw-obj-toolbar button{ width:34px; height:32px; font-size:12px; }
+    .draw-obj-toolbar button svg{ width:18px; height:18px; }
+    .draw-obj-toolbar .dot-swatch-inner{ width:18px; height:18px; }
+    .draw-hint{ font-size:12px; padding:7px 14px; }
+  }
 
   /* CHART & RESIZER */
   .chart-wrapper{ display:flex; flex-direction:column; flex: 1; min-width: 0; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--surface); position:relative; }
@@ -252,18 +268,23 @@
   .pane-title{ font-size:10.5px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; }
   #chart-volume{ width:100%; height:100px; min-height:60px; }
   #chart-rsi{ width:100%; height:110px; min-height:60px; }
-  .chart-legend{ position:absolute; top:6px; left:10px; z-index:5; font-size:11px; font-family:'JetBrains Mono',monospace; display:flex; gap:6px; flex-wrap:wrap; }
-  .ind-item{ display:flex; align-items:center; gap:4px; background:#0e131be0; border:1px solid var(--border); border-radius:6px; padding:3px 5px; cursor:grab; pointer-events:auto; user-select:none; transition:opacity .15s; flex-wrap:wrap; }
-  .ind-item .ind-group{ display:flex; align-items:center; gap:4px; margin-right:8px; }
+  .chart-legend{ position:absolute; top:6px; left:10px; right:10px; z-index:5; font-size:11px; font-family:'JetBrains Mono',monospace; display:flex; flex-direction:column; align-items:flex-start; gap:1px; pointer-events:none; }
+  .ind-item{ display:flex; align-items:center; gap:5px; max-width:100%; background:transparent; border-radius:5px; padding:1px 4px; cursor:grab; pointer-events:auto; user-select:none; transition:background .12s; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .ind-item:hover, .ind-item.legend-open{ background:#0e131bcc; }
+  .ind-item .ind-name{ color:#8891a3; font-weight:600; flex-shrink:0; }
   .ind-item.dragging{ opacity:0.4; }
-  .ind-item.ind-hidden{ opacity:0.45; }
-  .ind-item .ind-drag{ color:#4d5568; font-size:10px; letter-spacing:-1px; }
-  .ind-item .ind-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-  .ind-item .ind-label{ color:#c7cdda; white-space:nowrap; }
-  .ind-item .ind-value{ font-family:'JetBrains Mono', monospace; font-weight:700; white-space:nowrap; margin-left:2px; }
-  .ind-item .ind-eye, .ind-item .ind-gear{ background:transparent; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; padding:0 2px; line-height:1; }
+  .ind-item.ind-hidden{ opacity:0.4; }
+  .ind-item .ind-group{ display:flex; align-items:center; gap:3px; flex-shrink:0; }
+  .ind-item .ind-dot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .ind-item .ind-label{ color:#7c8598; white-space:nowrap; }
+  .ind-item .ind-value{ font-family:'JetBrains Mono', monospace; font-weight:700; white-space:nowrap; }
+  /* Nút ẩn/hiện, cài đặt, xoá chỉ lộ ra khi rê chuột (desktop) hoặc chạm vào dòng đó (mobile) —
+     đúng kiểu Binance/TradingView, tránh legend dài lê thê chiếm hết góc biểu đồ theo mặc định. */
+  .ind-item .ind-actions{ display:flex; align-items:center; gap:1px; max-width:0; overflow:hidden; opacity:0; transition:max-width .15s ease, opacity .12s ease; flex-shrink:0; }
+  .ind-item:hover .ind-actions, .ind-item.legend-open .ind-actions{ max-width:80px; opacity:1; margin-left:2px; }
+  .ind-item .ind-eye, .ind-item .ind-gear{ background:transparent; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; padding:0 2px; line-height:1; flex-shrink:0; }
   .ind-item .ind-eye:hover, .ind-item .ind-gear:hover{ color:var(--text); }
-  .ind-item .ind-trash{ background:transparent; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; padding:0 2px; line-height:1; }
+  .ind-item .ind-trash{ background:transparent; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; padding:0 2px; line-height:1; flex-shrink:0; }
   .ind-item .ind-trash:hover{ color:var(--down); }
   .ind-popover{ position:absolute; z-index:10001; width:230px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; box-shadow:0 12px 32px rgba(0,0,0,0.55); display:none; }
   .ind-popover.show{ display:block; }
@@ -299,7 +320,23 @@
 
   /* ============ PANELS & UI XÓA (NÂNG CẤP) ============ */
   .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
-  @media (max-width: 820px) { .panel-grid { grid-template-columns: 1fr; } .main-container { flex-direction: column; } .drawing-toolbar { flex-direction: row; width: 100%; height: 48px; min-height: 0; align-self: auto; padding: 0 12px; justify-content: flex-start; overflow-x: auto; overflow-y: hidden; } .toolbar-divider { width: 1px; height: 24px; margin: 0 4px; } }
+
+  /* FOOTER MIỄN TRỪ TRÁCH NHIỆM */
+  .site-footer{ margin-top:26px; padding-top:20px; border-top:1px solid var(--border); }
+  .site-footer-disclaimer{ display:flex; align-items:flex-start; gap:12px; background:rgba(255,201,60,0.045); border:1px solid rgba(255,201,60,0.16); border-radius:12px; padding:14px 16px; }
+  .site-footer-disclaimer-icon{ flex-shrink:0; width:28px; height:28px; border-radius:8px; background:rgba(255,201,60,0.12); display:flex; align-items:center; justify-content:center; color:var(--gold); }
+  .site-footer-disclaimer-icon svg{ width:15px; height:15px; }
+  .site-footer-disclaimer-text{ color:var(--text-dim); font-size:12px; line-height:1.7; max-width:1040px; padding-top:2px; }
+  .site-footer-disclaimer-text strong{ display:block; color:var(--text); font-size:12.5px; font-weight:700; letter-spacing:.2px; margin-bottom:4px; }
+  .site-footer-disclaimer-text p{ margin:0; }
+  .site-footer-bottom{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; margin-top:16px; font-size:11.5px; color:var(--text-dim); }
+  .site-footer-brand{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+  .site-footer-copyright{ color:var(--text); font-weight:600; }
+  .site-footer-dot{ opacity:.4; }
+  .site-footer-link{ display:inline-flex; align-items:center; gap:6px; color:var(--text-dim); text-decoration:none; opacity:.85; transition:opacity .15s, color .15s; }
+  .site-footer-link svg{ width:13px; height:13px; flex-shrink:0; }
+  .site-footer-link:hover{ color:var(--accent); opacity:1; text-decoration:underline; }
+  @media (max-width: 820px) { .panel-grid { grid-template-columns: 1fr; } .main-container { flex-direction: column; } .drawing-toolbar { flex-direction: row; width: 100%; height: 54px; min-height: 0; align-self: auto; padding: 0 12px; justify-content: flex-start; overflow-x: auto; overflow-y: hidden; } .drawing-toolbar .tool-btn{ width:40px; height:40px; } .toolbar-divider { width: 1px; height: 26px; margin: 0 5px; } }
   
   .ai-panel{ background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; display: flex; flex-direction: column; max-height: 400px;}
   .ai-panel-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border); }
@@ -379,6 +416,7 @@
     .topbar{ gap:10px; padding-bottom:12px; }
     .brand-text span{ display:none; } /* ẩn dòng phụ đề dài, giữ layout gọn trên màn hình nhỏ */
     .brand-text{ font-size:14px; }
+    .brand-privacy-link{ font-size:10px; margin-top:1px; }
     .search-box input{ width:88px; font-size:12px; padding:8px 4px 8px 8px; }
     .symbol-suggest{ width:min(260px, 90vw); }
     .profile-meta{ display:none; } /* trên di động chỉ hiện avatar cho gọn */
@@ -406,19 +444,26 @@
     .ai-toggle-label{ font-size:11.5px; }
 
     .main-container{ gap:8px; }
-    .drawing-toolbar{ height:42px; gap:6px; padding:0 8px; }
-    .tool-btn{ width:30px; height:30px; }
+    .drawing-toolbar{ height:54px; gap:6px; padding:0 8px; }
+    .tool-btn{ width:40px; height:40px; }
     #chart-price{ height:340px; }
     #chart-volume{ height:90px; }
     #chart-rsi{ height:95px; }
     .pane-header{ padding:4px 8px; }
 
-    /* Icon chỉ báo (mắt/cài đặt/xoá) trong legend to hơn để bấm bằng ngón tay không bị trượt */
-    .ind-item{ padding:5px 7px; gap:6px; }
-    .ind-item .ind-eye, .ind-item .ind-gear, .ind-item .ind-trash{ font-size:13px; padding:3px 4px; }
+    /* Icon chỉ báo (mắt/cài đặt/xoá) trong legend to hơn để bấm bằng ngón tay không bị trượt.
+       Trên mobile không có hover nên các icon này chỉ lộ ra khi chạm vào dòng (class .legend-open,
+       gắn ở initLegendEvents trong script.js) — giữ legend mặc định gọn 1 dòng/chỉ báo. */
+    .ind-item{ padding:6px 7px; gap:6px; }
+    .ind-item .ind-eye, .ind-item .ind-gear, .ind-item .ind-trash{ font-size:13px; padding:4px 5px; }
+    .ind-item:hover .ind-actions, .ind-item.legend-open .ind-actions{ max-width:100px; }
     .ind-item .ind-label{ font-size:11px; }
 
     .panel-grid{ gap:10px; }
+    .site-footer{ margin-top:16px; padding-top:14px; }
+    .site-footer-disclaimer{ padding:12px; gap:10px; }
+    .site-footer-disclaimer-text{ font-size:11px; }
+    .site-footer-bottom{ flex-direction:column; align-items:flex-start; gap:8px; }
     .ai-panel{ max-height:320px; }
     .signal-row{ padding:10px 14px; }
 
@@ -454,7 +499,7 @@
   --ag-glass: rgba(6,8,13,.72);
 
   position: relative;
-  background:rgba(4,6,10,.86));
+  background:rgba(4,6,10,.86);
   backdrop-filter: blur(14px) saturate(1.1);
   -webkit-backdrop-filter: blur(14px) saturate(1.1);
   border: 1px solid var(--ag-line);
