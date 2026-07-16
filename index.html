@@ -78,7 +78,8 @@
   <div class="topbar">
     <div class="brand">
       <img src="logofututrade.png" class="brand-logo" alt="FUTU TRADE">
-      <div class="brand-text">FUTU TRADE<span> CRYPTO TERMINAL - ĐƯỢC PHÁT TRIỂN BỞI SINH VIÊN VÕ THANH SANG(UTH)</span></div>
+      <div class="brand-text">FUTU TRADE<span> CRYPTO TERMINAL - ĐƯỢC PHÁT TRIỂN BỞI SINH VIÊN VÕ THANH SANG(UTH)</span>
+      </div>
     </div>
     
     <div class="chips" id="chip-container">
@@ -335,6 +336,29 @@
     </div>
   </div>
 
+  <div class="site-footer">
+    <div class="site-footer-disclaimer">
+      <div class="site-footer-disclaimer-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      </div>
+      <div class="site-footer-disclaimer-text">
+        <strong>Miễn trừ trách nhiệm</strong>
+        <p>FUTU TRADE là công cụ hỗ trợ theo dõi &amp; phân tích dữ liệu thị trường, không phải lời khuyên hay khuyến nghị đầu tư. Toàn bộ tín hiệu AI, chỉ báo kỹ thuật, dữ liệu cá mập... trên nền tảng chỉ mang tính chất tham khảo. FUTU TRADE không đại diện giao dịch, không thực hiện lệnh mua/bán, không quản lý tài sản và không chịu trách nhiệm dưới bất kỳ hình thức nào đối với quyết định đầu tư của người dùng. Giao dịch tài sản số tiềm ẩn rủi ro cao — người dùng tự nghiên cứu và chịu trách nhiệm hoàn toàn với quyết định của mình.</p>
+      </div>
+    </div>
+    <div class="site-footer-bottom">
+      <div class="site-footer-brand">
+        <span class="site-footer-copyright">© 2026 FUTU TRADE</span>
+        <span class="site-footer-dot">•</span>
+        <span>Được phát triển bởi sinh viên Võ Thanh Sang (UTH)</span>
+      </div>
+      <a href="privacy.html" target="_blank" rel="noopener" class="site-footer-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.6c0 4.6-3.1 8.4-7.5 9.4-4.4-1-7.5-4.8-7.5-9.4V6z"/><path d="M9 12l2.2 2.2L15.3 10"/></svg>
+        Chính sách quyền riêng tư
+      </a>
+    </div>
+  </div>
+
   <div class="toast-container" id="toast-container"></div>
 
   <div class="modal-overlay" id="settings-modal">
@@ -563,10 +587,46 @@
   // vì Firebase Auth photoURL không đủ chỗ chứa base64 và Storage cần gói Blaze trả phí.
   let cachedAvatarBase64 = null;
 
+  // =========================================================
+  // CHỐNG MẠO DANH ADMIN QUA TÊN HIỂN THỊ
+  // Chỉ những email trong danh sách dưới đây mới được phép có tên hiển thị chứa các từ kiểu
+  // "Admin/Quản trị/CEO/Đội ngũ FUTU TRADE..." — tránh việc người dùng bất kỳ tự đặt tên giả
+  // làm quản trị viên để lừa người khác trong ứng dụng.
+  // =========================================================
+  const ADMIN_ALLOWED_EMAILS = ['tuitensang07@gmail.com'];
+
+  // Bỏ dấu tiếng Việt để bắt được cả các biến thể gõ không dấu (vd "quan tri vien futu trade")
+  function stripVnDiacritics(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd');
+  }
+  // Danh sách từ khoá "tự xưng admin" dưới nhiều biến thể đồng nghĩa — có thể bổ sung thêm nếu phát hiện cách né mới
+  const ADMIN_CLAIM_KEYWORDS = [
+    'admin', 'administrator', 'quan tri', 'ban quan tri', 'quan tri vien',
+    'ceo', 'founder', 'nguoi sang lap', 'chu so huu', 'chu san',
+    'doi ngu futu', 'nhan vien futu', 'nhan vien chinh thuc',
+    'support futu', 'ho tro futu', 'cham soc khach hang futu', 'staff futu',
+    'moderator', 'mod futu', 'official futu', 'futu official', 'futu trade official',
+    'dai dien futu', 'quan ly futu', 'giam doc futu'
+  ];
+  function isAdminClaimName(rawName) {
+    if (!rawName) return false;
+    const norm = stripVnDiacritics(rawName.toLowerCase());
+    return ADMIN_CLAIM_KEYWORDS.some(k => norm.includes(k));
+  }
+  function isEmailAdminAllowed(email) {
+    return !!email && ADMIN_ALLOWED_EMAILS.includes(email.toLowerCase());
+  }
+
   // Đổ dữ liệu người dùng ra ô profile cạnh logo
   function renderProfile(user) {
     const isGuest = user.isAnonymous;
-    const displayName = isGuest ? 'Khách' : (user.displayName || (user.email ? user.email.split('@')[0] : 'Người dùng'));
+    let displayName = isGuest ? 'Khách' : (user.displayName || (user.email ? user.email.split('@')[0] : 'Người dùng'));
+    // Chặn mạo danh: kể cả khi tên "Admin/CEO/Đội ngũ FUTU TRADE..." đến từ chính tên tài khoản
+    // Google/Facebook gốc (không qua form đổi tên trong app), vẫn không hiển thị nếu email không
+    // nằm trong danh sách được cấp phép — thay bằng tên rút gọn theo email.
+    if (!isGuest && isAdminClaimName(displayName) && !isEmailAdminAllowed(user.email)) {
+      displayName = user.email ? user.email.split('@')[0] : 'Người dùng';
+    }
     const initial = displayName.trim().charAt(0).toUpperCase() || 'U';
     const uidShort = shortUidFrom(user.uid);
     const avatarSrc = cachedAvatarBase64 || user.photoURL;
@@ -838,6 +898,10 @@
     const newName = editDisplayNameInput.value.trim();
     if (!newName) {
       setEditProfileStatus('Vui lòng nhập tên hiển thị.', 'error');
+      return;
+    }
+    if (isAdminClaimName(newName) && !isEmailAdminAllowed(user.email)) {
+      setEditProfileStatus('Tên hiển thị không được chứa từ như "Admin/Quản trị/CEO/Đội ngũ FUTU TRADE..." — chỉ tài khoản được cấp phép mới dùng được.', 'error');
       return;
     }
 
