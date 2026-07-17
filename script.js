@@ -102,10 +102,24 @@
 
   
   let whaleLogs = JSON.parse(localStorage.getItem('ok_whale_logs') || '[]');
-  // Trước đây chỉ lưu tối đa 50 lệnh vì chỉ theo dõi 1 coin đang xem. Giờ giám sát NỀN toàn bộ
-  // coin trên thị trường cùng lúc nên nâng giới hạn lên nhiều hơn để log của các coin ít giao dịch
-  // không bị các coin sôi động (BTC, ETH...) đẩy trôi mất quá nhanh.
-  const MAX_WHALE_LOGS = 400;
+  // Theo yêu cầu: Nhật ký Cá Mập được LƯU MÃI MÃI, không tự động xóa bớt theo thời gian/số lượng.
+  // Log chỉ mất đi khi người dùng tự bấm nút xóa (xóa lẻ hoặc "Xóa tất cả" cho từng coin).
+  // Lưu ý: localStorage của trình duyệt có giới hạn dung lượng (thường ~5-10MB tùy trình duyệt).
+  // Nếu dữ liệu tích lũy quá lâu và vượt quá giới hạn này, hệ thống sẽ báo cho bạn biết (xem
+  // hàm persistWhaleLogsSafe bên dưới) thay vì tự ý xóa bớt log cũ.
+  let whaleStorageFullWarned = false;
+  function persistWhaleLogsSafe() {
+    try {
+      localStorage.setItem('ok_whale_logs', JSON.stringify(whaleLogs));
+    } catch (e) {
+      // Bộ nhớ trình duyệt đã đầy — KHÔNG tự xóa log cũ, chỉ báo cho người dùng biết 1 lần
+      // để họ chủ động vào dọn bớt (nhật ký vẫn hiển thị đầy đủ trong phiên làm việc hiện tại).
+      if (!whaleStorageFullWarned) {
+        whaleStorageFullWarned = true;
+        console.warn('Bộ nhớ trình duyệt (localStorage) đã đầy, không thể lưu thêm nhật ký cá mập mới. Vui lòng vào Nhật ký Cá Mập và xóa bớt các mục cũ.', e);
+      }
+    }
+  }
 
   let whaleLarge = parseFloat(localStorage.getItem('ok_whale_large')) || 500000;
   let whaleMid = parseFloat(localStorage.getItem('ok_whale_mid')) || 100000;
@@ -786,6 +800,61 @@
     el.addEventListener('mouseup', handler);
     el.addEventListener('pointerup', handler);
   }
+
+  // =========================================================
+  // GIỮ CROSSHAIR "SỐNG" KHI DỮ LIỆU REAL-TIME CẬP NHẬT (fix chuẩn như Binance/TradingView)
+  // ---------------------------------------------------------
+  // Gốc lỗi: mỗi khi 1 series gọi update()/setData() (ví dụ mỗi tick giá từ WebSocket), thư viện
+  // lightweight-charts coi đó là dữ liệu đã đổi nên TỰ ẨN crosshair, và chỉ vẽ lại khi có một sự
+  // kiện mousemove MỚI. Trên coin sôi động, tick giá đến liên tục nhiều lần/giây -> crosshair bị ẩn
+  // đi ẩn lại liên tục dù người dùng đang để chuột đứng yên hẳn trong chart -> cảm giác "biến mất".
+  // Cách khắc phục CHUẨN (đúng cách các sàn lớn làm): luôn theo dõi vị trí con trỏ chuột hiện tại,
+  // và ngay sau mỗi lần dữ liệu cập nhật, tự "giả lập" lại 1 sự kiện mousemove tại đúng vị trí đó để
+  // ép thư viện vẽ lại crosshair NGAY LẬP TỨC — không cần người dùng di chuột thêm.
+  // CẬP NHẬT: thay vì chỉ vẽ lại crosshair MỘT LẦN mỗi khi có dữ liệu mới (cách cũ), giờ chạy hẳn một
+  // vòng lặp requestAnimationFrame LIÊN TỤC trong suốt thời gian chuột còn nằm trong chart-wrapper.
+  // Nhờ vậy crosshair luôn được ép vẽ lại đều đặn (~16 lần/giây, đủ mượt, khỏi tốn CPU như 60fps) bất kể
+  // nguyên nhân khiến thư viện tự ẩn nó là gì (tick giá, setData chỉ báo, đồng bộ độ rộng trục giá, resize
+  // pane, v.v...) — không cần phải rải keepCrosshairAlive() ở từng nơi gọi setData/update nữa. Vòng lặp tự
+  // dừng hẳn (không chạy nền) ngay khi chuột rời khỏi chart, nên không tốn tài nguyên khi không ai rê chuột.
+  let lastPointerX = null, lastPointerY = null, pointerInsideChartWrapper = false;
+  let crosshairKeepAliveLoopId = null;
+  let lastKeepAliveRefreshTs = 0;
+  function crosshairKeepAliveLoop(ts) {
+    if (!pointerInsideChartWrapper) { crosshairKeepAliveLoopId = null; return; } // chuột đã rời chart -> dừng vòng lặp
+    if (!isResizing && lastPointerX !== null && (ts - lastKeepAliveRefreshTs >= 60)) {
+      lastKeepAliveRefreshTs = ts;
+      Object.values(paneRegistry).forEach(reg => {
+        const el = document.getElementById(reg.elId);
+        forceCrosshairRefresh(el, lastPointerX, lastPointerY);
+      });
+    }
+    crosshairKeepAliveLoopId = requestAnimationFrame(crosshairKeepAliveLoop);
+  }
+  function ensureCrosshairKeepAliveLoop() {
+    if (crosshairKeepAliveLoopId === null) crosshairKeepAliveLoopId = requestAnimationFrame(crosshairKeepAliveLoop);
+  }
+  (function trackPointerForCrosshairKeepAlive() {
+    const wrapper = document.getElementById('chart-wrapper');
+    if (!wrapper) return;
+    wrapper.addEventListener('mousemove', e => {
+      lastPointerX = e.clientX; lastPointerY = e.clientY; pointerInsideChartWrapper = true;
+      ensureCrosshairKeepAliveLoop(); // khởi động vòng lặp ngay khi chuột vừa vào chart (nếu chưa chạy)
+    });
+    wrapper.addEventListener('mouseleave', () => { pointerInsideChartWrapper = false; });
+    // Chuột rời khỏi cả cửa sổ trình duyệt (ví dụ kéo qua tab khác) cũng phải coi là đã rời chart
+    window.addEventListener('blur', () => { pointerInsideChartWrapper = false; });
+  })();
+  // Giữ lại hàm cũ để những nơi đang gọi keepCrosshairAlive() (ngay sau setData/update) vẫn ép vẽ lại
+  // NGAY LẬP TỨC thay vì chờ tới khung hình kế tiếp của vòng lặp ở trên — vẫn hữu ích cho các bước nhảy
+  // lớn như đổi coin/khung (scrollToRealTime), nên không cần xoá các lệnh gọi keepCrosshairAlive() cũ.
+  function keepCrosshairAlive() {
+    if (!pointerInsideChartWrapper || lastPointerX === null || isResizing) return;
+    Object.values(paneRegistry).forEach(reg => {
+      const el = document.getElementById(reg.elId);
+      forceCrosshairRefresh(el, lastPointerX, lastPointerY);
+    });
+  }
   function resizeAllCharts() {
     const wrapper = document.getElementById('chart-wrapper');
     if (!wrapper) return;
@@ -941,6 +1010,11 @@
     const d = new Date(t * 1000);
     return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
   }
+  // Định dạng đầy đủ ngày/tháng/năm + giờ:phút:giây, dùng cho Nhật ký Cá Mập (nhận mốc thời gian tính bằng mili-giây, ví dụ Date.now())
+  function fmtFullDateTime(ms){
+    const d = new Date(ms);
+    return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+  }
 
   // =========================================================
   // ĐỒNG BỘ THỜI GIAN TUYỆT ĐỐI GIỮA TOOLTIP <-> NHÃN CROSSHAIR <-> TRỤC THỜI GIAN
@@ -1008,10 +1082,9 @@
     const reg = paneRegistry[ind.pane]; if (!reg) return;
     const chart = reg.chart; const scaleId = decideScale(ind);
     const lineStyle = LINE_STYLE_MAP[ind.style] ?? 0;
-    // lastValueVisible: false — tránh chồng ô giá trị lên trục phải khi nhiều đường (EMA/RSI...) có giá trị gần nhau.
-    // Giá trị hiện tại của từng chỉ báo được hiển thị trong legend góc trái (giống Binance/TradingView), không phải trên trục.
+    // lastValueVisible: true — hiển thị nhãn giá trị hiện tại của chỉ báo trên trục giá bên phải.
     // crosshairMarkerVisible: false — loại bỏ toàn bộ dấu chấm hiện ra khi rê chuột trên các đường chỉ báo (EMA/RSI/MACD/Stoch...)
-    const mkLine = (color, width, extra) => chart.addSeries(LightweightCharts.LineSeries, Object.assign({ color, lineWidth: width, lineStyle, priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, visible: ind.visible }, extra || {}));
+    const mkLine = (color, width, extra) => chart.addSeries(LightweightCharts.LineSeries, Object.assign({ color, lineWidth: width, lineStyle, priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false, visible: ind.visible }, extra || {}));
     let series = []; const guides = [];
     if (ind.type === 'sma' || ind.type === 'ema' || ind.type === 'volma') {
       series = [mkLine(ind.color, ind.width)];
@@ -1025,7 +1098,7 @@
       guides.push(main.createPriceLine({ price: 50, color: '#7c859855', lineWidth: 1, lineStyle: 3, axisLabelVisible: false, title: '' }));
     } else if (ind.type === 'macd') {
       const macdLine = mkLine(ind.color, ind.width); const signalLine = mkLine(ind.color2, ind.width2 || 1);
-      const hist = chart.addSeries(LightweightCharts.HistogramSeries, { priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: false, visible: ind.visible });
+      const hist = chart.addSeries(LightweightCharts.HistogramSeries, { priceScaleId: scaleId, priceLineVisible: false, lastValueVisible: true, visible: ind.visible });
       series = [macdLine, signalLine, hist];
     } else if (ind.type === 'stoch') {
       const k = mkLine(ind.color, ind.width); const d = mkLine(ind.color2, ind.width2 || 1);
@@ -2072,7 +2145,7 @@
     recent.forEach(log => {
       const row = document.createElement('div'); row.className = 'signal-row';
       const tone = log.isBuy ? 'up' : 'down'; const label = log.isBuy ? 'CÁ MẬP MUA' : 'CÁ MẬP BÁN';
-      row.innerHTML = `<div style="display:flex; flex:1; padding-right: 10px;"><div class="signal-badge ${tone}">${label}</div><div class="signal-body" style="flex:1;"><div class="signal-meta"><span class="signal-time">${new Date(log.time).toLocaleTimeString('vi-VN')}</span><span class="signal-price" style="color:var(--${tone}); font-weight:700">${fmtVol(log.usd)} USDT</span></div><div class="signal-desc">Coin: <b>${log.symbol}</b> ở mức giá <b>${fmt(log.price)}</b></div></div></div><div style="display:flex; align-items:center;"><button class="btn-delete-item" onclick="deleteSingleLog(${log.time}, true)" title="Xóa">${icon('x')}</button></div>`;
+      row.innerHTML = `<div style="display:flex; flex:1; padding-right: 10px;"><div class="signal-badge-wrap"><span class="signal-eyebrow">DÒNG TIỀN LỚN</span><div class="signal-badge ${tone}">${icon('whale')}<span class="lbl">${label}</span></div></div><div class="signal-body" style="flex:1;"><div class="signal-meta"><span class="signal-time">${fmtFullDateTime(log.time)}</span><span class="signal-price" style="color:var(--${tone}); font-weight:700">${fmtVol(log.usd)} USDT</span></div><div class="signal-desc">Coin: <b>${log.symbol}</b> ở mức giá <b>${fmt(log.price)}</b></div></div></div><div style="display:flex; align-items:center;"><button class="btn-delete-item" onclick="deleteSingleLog(${log.time}, true)" title="Xóa">${icon('x')}</button></div>`;
       list.appendChild(row);
     });
   }
@@ -2081,12 +2154,11 @@
   function showWhaleAlert(isBuy, usdAmount, price, symbol) {
     const container = document.getElementById('toast-container'); const toast = document.createElement('div');
     toast.className = `whale-toast ${isBuy ? 'buy' : 'sell'}`;
-    toast.innerHTML = `<div class="whale-icon">${isBuy ? icon('whale') + icon('trendUp') : icon('whale') + icon('trendDown')}</div><div class="whale-content"><div class="whale-title">${isBuy ? 'CÁ MẬP MUA' : 'CÁ MẬP BÁN'}</div><div class="whale-desc">${fmtVol(usdAmount)} USDT ở giá ${fmt(price)}</div><div class="whale-time">${new Date().toLocaleTimeString('vi-VN')}</div></div>`;
+    toast.innerHTML = `<div class="whale-icon">${isBuy ? icon('whale') + icon('trendUp') : icon('whale') + icon('trendDown')}</div><div class="whale-content"><div class="whale-title">${isBuy ? 'CÁ MẬP MUA' : 'CÁ MẬP BÁN'}</div><div class="whale-desc">${fmtVol(usdAmount)} USDT ở giá ${fmt(price)}</div><div class="whale-time">${fmtFullDateTime(Date.now())}</div></div>`;
     container.appendChild(toast); requestAnimationFrame(() => toast.classList.add('show'));
     setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 6000);
     whaleLogs.push({ time: Date.now(), isBuy, usd: usdAmount, price, symbol });
-    if (whaleLogs.length > MAX_WHALE_LOGS) whaleLogs.shift();
-    localStorage.setItem('ok_whale_logs', JSON.stringify(whaleLogs)); renderWhaleLogs();
+    persistWhaleLogsSafe(); renderWhaleLogs();
   }
 
   // ==========================================
@@ -2107,7 +2179,7 @@
   function persistWhaleLogsThrottled() {
     if (whaleLogPersistPending) return;
     whaleLogPersistPending = true;
-    setTimeout(() => { whaleLogPersistPending = false; try { localStorage.setItem('ok_whale_logs', JSON.stringify(whaleLogs)); } catch (e) {} }, 2000);
+    setTimeout(() => { whaleLogPersistPending = false; persistWhaleLogsSafe(); }, 2000);
   }
 
   function startMarketWhaleWatcher() {
@@ -2127,7 +2199,6 @@
         const dynamicThreshold = getWhaleThreshold(symbol);
         if (usd >= dynamicThreshold) {
           whaleLogs.push({ time: Date.now(), isBuy, usd, price: p, symbol });
-          if (whaleLogs.length > MAX_WHALE_LOGS) whaleLogs.shift();
           persistWhaleLogsThrottled();
           // Không hiện toast và không vẽ lại danh sách ở đây vì coin này không đang được xem —
           // tránh giật máy/spam. Danh sách sẽ tự hiện đúng dữ liệu ngay khi đổi sang coin đó (xem updateChart).
@@ -2251,6 +2322,8 @@
     }
 
     let lastLongIdx = -9999, lastShortIdx = -9999; const cooldownBars = 10;
+    let lastClimaxBuyIdx = -9999, lastClimaxSellIdx = -9999; const climaxCooldownBars = 8;
+    const climaxLookback = 10;
     
     for (let i = 200; i < candlesData.length; i++) {
       const c = candlesData[i]; const prevC = candlesData[i-1]; const v = vols[i]; const currRsi = rsi14[i];
@@ -2328,17 +2401,32 @@
         addSignal({ time: c.time, type: 'trend_short', label: 'BÁN - SHORT', tone: 'down', price: c.close, entry: c.close, target: targetPrice, sl: stopLoss, desc: `Đồng thuận đa khung: ${confidenceLabel}. ${tfNote} Entry tối ưu tại khung ${currentInterval}. ${targetDesc}`, color: currentDownColor });
       }
 
-      // 2. KHÔI PHỤC TÍN HIỆU VOLUME ĐỘT BIẾN / CLIMAX
+      // 2. TÍN HIỆU VOLUME ĐỘT BIẾN / CLIMAX — đã tối ưu: chỉ báo climax THẬT khi có đủ 4 điều kiện
+      // (1) volume đột biến, (2) đã có nhịp tăng/giảm rõ rệt trước đó (so ATR), (3) RSI đang quá mua/quá bán,
+      // (4) biên độ nến (range) bất thường + bấc áp đảo thân nến. Có cooldown riêng tránh báo dồn dập.
       const avgVol = volSma[i];
       if (v > avgVol * aiVolMult) {
         const body = Math.abs(c.close - c.open);
+        const range = Math.max(c.high - c.low, 1e-9);
         const upperWick = c.high - Math.max(c.open, c.close);
         const lowerWick = Math.min(c.open, c.close) - c.low;
-        
-        if (c.close > c.open && upperWick > body * 1.5) {
-           addSignal({ time: c.time, type: 'climax_buy', label: 'BUYING CLIMAX', tone: 'warn', price: c.close, desc: `Vol x${(v/avgVol).toFixed(1)}. Bị xả mạnh.`, color: '#ffc93c' });
-        } else if (c.close < c.open && lowerWick > body * 1.5) {
-           addSignal({ time: c.time, type: 'climax_sell', label: 'SELLING CLIMAX', tone: 'warn', price: c.close, desc: `Vol x${(v/avgVol).toFixed(1)}. Lực bắt đáy mạnh.`, color: '#ffc93c' });
+
+        const priorC = candlesData[Math.max(0, i - climaxLookback)];
+        const priorMove = c.close - priorC.close;
+        const priorMoveStrong = atr14[i] > 0 && Math.abs(priorMove) > atr14[i] * 1.8;
+        const priorUptrend = priorMoveStrong && priorMove > 0;
+        const priorDowntrend = priorMoveStrong && priorMove < 0;
+        const rangeIsWide = avgAtr[i] > 0 ? range > avgAtr[i] * 1.3 : true;
+
+        const isBuyClimaxShape = c.close > c.open && upperWick > body * 1.5 && upperWick > range * 0.35;
+        const isSellClimaxShape = c.close < c.open && lowerWick > body * 1.5 && lowerWick > range * 0.35;
+
+        if (isBuyClimaxShape && priorUptrend && rangeIsWide && currRsi > 65 && (i - lastClimaxBuyIdx) >= climaxCooldownBars) {
+           lastClimaxBuyIdx = i;
+           addSignal({ time: c.time, type: 'climax_buy', label: 'BUYING CLIMAX', tone: 'warn', price: c.close, desc: `Vol x${(v/avgVol).toFixed(1)} sau nhịp tăng mạnh, RSI ${currRsi.toFixed(0)} quá mua. Bị xả mạnh.`, color: '#ffc93c' });
+        } else if (isSellClimaxShape && priorDowntrend && rangeIsWide && currRsi < 35 && (i - lastClimaxSellIdx) >= climaxCooldownBars) {
+           lastClimaxSellIdx = i;
+           addSignal({ time: c.time, type: 'climax_sell', label: 'SELLING CLIMAX', tone: 'warn', price: c.close, desc: `Vol x${(v/avgVol).toFixed(1)} sau nhịp giảm mạnh, RSI ${currRsi.toFixed(0)} quá bán. Lực bắt đáy mạnh.`, color: '#ffc93c' });
         } else if (c.close > c.open && !isLongEntry) {
            // Vẽ lại chấm tròn cho Volume Bùng nổ (Mua)
            addSignal({ time: c.time, type: 'vol_spike', label: 'BÙNG NỔ MUA', tone: 'up', price: c.close, desc: `Vol x${(v/avgVol).toFixed(1)} lần trung bình.`, color: currentUpColor });
@@ -2376,7 +2464,8 @@
         ? `<div class="signal-desc" style="margin-top:5px; font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:600;"><span style="color:var(--up)">${icon('dot','ico-inline')}Entry: ${fmt(s.entry)}</span> | <span style="color:var(--gold)">${icon('dot','ico-inline')}Target: ${fmt(s.target)}</span> | <span style="color:var(--down)">${icon('dot','ico-inline')}SL: ${fmt(s.sl)}</span></div><div class="signal-desc" style="color:var(--text-dim); font-size:11.5px; margin-top:3px;">${s.desc}</div>${proNoteHtml}` 
         : `<div class="signal-desc" style="color:var(--text-dim); font-size:12.5px; margin-top:5px;">${s.desc}</div>${proNoteHtml}`;
 
-      row.innerHTML = `<div style="display:flex; flex:1; padding-right: 10px;"><div class="signal-badge ${s.tone}">${icon(signalIconName(s))}${s.label}</div><div class="signal-body" style="flex:1;"><div class="signal-meta"><span class="signal-time">${fmtTime(s.time)}</span><span class="signal-price" style="font-weight:700;">${s.entry ? 'Vùng:' : 'Giá:'} ${fmt(s.price)} USDT</span></div>${descHtml}</div></div><div style="display:flex; align-items:center;"><button class="btn-delete-item" onclick="deleteSingleLog(${s.time})" title="Xóa">${icon('x')}</button></div>`;
+      const cat = signalCategoryLabel(s); const catCls = cat === 'WYCKOFF' ? 'cat-wyckoff' : '';
+      row.innerHTML = `<div style="display:flex; flex:1; padding-right: 10px;"><div class="signal-badge-wrap"><span class="signal-eyebrow ${catCls}">${cat}</span><div class="signal-badge ${s.tone}">${icon(signalIconName(s))}<span class="lbl">${s.label}</span></div></div><div class="signal-body" style="flex:1;"><div class="signal-meta"><span class="signal-time">${fmtTime(s.time)}</span><span class="signal-price" style="font-weight:700;">${s.entry ? 'Vùng:' : 'Giá:'} ${fmt(s.price)} USDT</span></div>${descHtml}</div></div><div style="display:flex; align-items:center;"><button class="btn-delete-item" onclick="deleteSingleLog(${s.time})" title="Xóa">${icon('x')}</button></div>`;
       aiList.appendChild(row);
     });
   }
@@ -2498,6 +2587,7 @@
         // (RSI, MACD...) sẽ giữ dữ liệu cũ cho tới tick websocket kế tiếp mới cập nhật, khiến đường RSI
         // hiển thị "ngắn hơn" / lệch so với Nến và Volume (vốn đã có dữ liệu mới ngay lập tức ở trên).
         updateAllIndicators();
+        keepCrosshairAlive(); // setData() ở trên (đồng bộ định kỳ mỗi 45s) cũng làm crosshair bị ẩn -> vẽ lại ngay nếu chuột vẫn đứng yên trong chart
         isLiveSignalPreview = false; runAIAnalysis();
         const upd = document.getElementById('stat-updated'); if (upd) upd.innerText = new Date().toLocaleTimeString('vi-VN');
       }).catch(err => console.log("Lỗi đồng bộ dữ liệu API:", err));
@@ -2555,6 +2645,7 @@
         candleSeries.update(liveCandle); volumeSeries.update(liveVolume); priceElement.innerText = fmt(liveCandle.close) + " USDT"; priceElement.className = "price-main num " + (isLiveUp ? "up" : "down");
         applyDynamicPricePrecision();
         syncPriceScaleWidths();
+        keepCrosshairAlive(); // update() vừa gọi ở trên làm lightweight-charts tự ẩn crosshair -> vẽ lại ngay nếu chuột vẫn đang ở trong chart
         candlesDataMap.set(time, liveCandle); volumesDataMap.set(time, liveVolume);
         const lastIdx = candlesData.length - 1;
         const isBrandNewBar = !(lastIdx >= 0 && candlesData[lastIdx].time === time);
@@ -2575,6 +2666,7 @@
         if (isBrandNewBar || kline.x === true || nowTs - lastIndicatorUpdateTs > 400) {
           lastIndicatorUpdateTs = nowTs;
           updateAllIndicators();
+          keepCrosshairAlive(); // updateAllIndicators() gọi setData() trên các đường chỉ báo -> cũng làm crosshair bị ẩn, cần vẽ lại
         }
         const upd = document.getElementById('stat-updated'); if (upd) upd.innerText = new Date().toLocaleTimeString('vi-VN');
         if (kline.x === true) { isLiveSignalPreview = false; runAIAnalysis(); }
