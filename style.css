@@ -211,12 +211,7 @@
   .color-pickers input[type="color"]::-webkit-color-swatch { border: 1px solid var(--border); border-radius: 4px; }
   .tf-action-btn{ background:var(--surface-alt); border:1px solid var(--border); color:var(--text); padding:5px 10px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; white-space:nowrap; touch-action:manipulation; display:inline-flex; align-items:center; gap:6px; }
   
-  .ai-toggle{ display:flex; align-items:center; gap:9px; padding:8px 4px 10px 4px; }
   .ai-toggle-label{ font-size:12.5px; font-weight:600; color:var(--text-dim); display:flex; align-items:center; gap:6px; }
-  .ai-switch{ width:38px; height:21px; border-radius:20px; background:#242b3a; border:1px solid var(--border); position:relative; cursor:pointer; transition:background .2s; flex-shrink:0; }
-  .ai-switch.on{ background:linear-gradient(90deg, #3d8bff, #7c5cff); border-color:transparent; }
-  .ai-switch::after{ content:''; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#fff; transition:left .2s; }
-  .ai-switch.on::after{ left:19px; }
 
   /* ============ MAIN CONTAINER & TOOLBAR ============ */
   .main-container { display: flex; align-items: stretch; gap: 14px; margin-top: 14px; }
@@ -261,6 +256,103 @@
 
   /* CHART & RESIZER */
   .chart-wrapper{ display:flex; flex-direction:column; flex: 1; min-width: 0; border:1px solid var(--border); border-radius:12px; overflow:hidden; background:var(--surface); position:relative; }
+
+  /* ============ AI ROBOT — mascot HUD độc quyền FUTU TRADE, vẽ 100% bằng SVG + CSS, có cánh cơ khí ============ */
+  @keyframes aiRobotFloat{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-7px); } }
+  @keyframes aiRobotPulse{ 0%,100%{ opacity:.55; transform:scale(1); } 50%{ opacity:1; transform:scale(1.1); } }
+  @keyframes aiRobotSpin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+  @keyframes aiRobotSpinRev{ from{ transform:rotate(360deg); } to{ transform:rotate(0deg); } }
+  @keyframes aiRobotScan{ 0%{ transform:translateY(-100%); opacity:0; } 10%{ opacity:1; } 90%{ opacity:1; } 100%{ transform:translateY(100%); opacity:0; } }
+  @keyframes aiRobotBlink{ 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
+  @keyframes aiRobotEyeBlink{ 0%,92%,100%{ transform:scaleY(1); } 96%{ transform:scaleY(.15); } }
+  @keyframes aiWingFlap{ 0%,100%{ transform:rotate(-5deg) scaleX(1); } 50%{ transform:rotate(7deg) scaleX(1.02); } }
+  @keyframes aiWingFlapR{ 0%,100%{ transform:rotate(5deg) scaleX(1); } 50%{ transform:rotate(-7deg) scaleX(1.02); } }
+  @keyframes aiWingFold{ 0%{ transform:rotate(-5deg); } 100%{ transform:rotate(-22deg); } }
+  @keyframes aiWingFoldR{ 0%{ transform:rotate(5deg); } 100%{ transform:rotate(22deg); } }
+
+  /* Neo bên trong khung chart, lệch khỏi cột trục giá bên phải (rightPriceScale rộng 90px) nên không bao giờ che số giá */
+  .ai-robot-fab{ position:absolute; top:14px; right:106px; width:64px; height:72px; z-index:20; cursor:pointer; outline:none; -webkit-tap-highlight-color:transparent; }
+
+  .ai-robot-glow{ position:absolute; top:29px; left:50%; width:82px; height:82px; margin:-41px 0 0 -41px; border-radius:50%; background:radial-gradient(circle, #3d8bff4a, #7c5cff2e 55%, transparent 72%); filter:blur(5px); animation:aiRobotPulse 2.4s ease-in-out infinite; pointer-events:none; }
+
+  .ai-robot-ring{ position:absolute; top:29px; left:50%; width:70px; height:70px; margin:-35px 0 0 -35px; border-radius:50%; background:conic-gradient(from 0deg, transparent 0deg, #3d8bff 25deg, transparent 60deg, transparent 180deg, #7c5cff 205deg, transparent 240deg); animation:aiRobotSpin 3.6s linear infinite; pointer-events:none; }
+  .ai-robot-ring::before{ content:''; position:absolute; inset:5px; border-radius:50%; border:1px dashed #3d8bff55; animation:aiRobotSpinRev 9s linear infinite; }
+
+  .ai-robot-orbit-dot{ position:absolute; top:50%; left:50%; width:5px; height:5px; margin:-2.5px 0 0 -2.5px; background:var(--gold); box-shadow:0 0 7px 2px #ffc93c99; transform:rotate(0deg) translateX(34px); clip-path:polygon(50% 0%,100% 50%,50% 100%,0% 50%); pointer-events:none; }
+  .ai-robot-orbit-dot.d1{ animation:aiRobotSpin 4.2s linear infinite; }
+  .ai-robot-orbit-dot.d2{ background:var(--accent); box-shadow:0 0 7px 2px #3d8bff99; animation:aiRobotSpin 4.2s linear infinite reverse; transform:rotate(180deg) translateX(34px); }
+
+  /* ---- Cánh cơ khí (SVG code, không dùng ảnh) — gắn hai bên vai, vỗ nhẹ liên tục ---- */
+  .ai-robot-wing{ position:absolute; top:15px; width:46px; height:54px; z-index:1; pointer-events:none; filter:drop-shadow(0 0 7px #3d8bff5c); transition:filter .2s; }
+  .ai-robot-wing--l{ left:50%; margin-left:-72px; }
+  .ai-robot-wing--r{ left:50%; margin-left:26px; }
+  .ai-robot-wing-feathers{ transform-origin:44px 29px; animation:aiWingFlap 2.6s ease-in-out infinite; }
+  .ai-robot-wing--r .ai-robot-wing-feathers{ transform-origin:4px 29px; animation-delay:-1.3s; animation-name:aiWingFlapR; }
+  .ai-robot-wing--l .feather{ fill:url(#wingGradL); stroke:#7ee0ff; stroke-width:.6; stroke-opacity:.75; }
+  .ai-robot-wing--r .feather{ fill:url(#wingGradR); stroke:#7ee0ff; stroke-width:.6; stroke-opacity:.75; }
+  .feather.f2{ opacity:.88; }
+  .feather.f3{ opacity:.72; }
+
+  .ai-robot-fab:hover .ai-robot-wing{ filter:drop-shadow(0 0 11px #7c5cffb0); }
+  .ai-robot-fab:hover .ai-robot-wing-feathers{ animation-duration:1s; }
+
+  .ai-robot-core{ position:absolute; left:50%; top:0; transform:translateX(-50%); width:58px; height:58px; z-index:2; -webkit-clip-path:polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); clip-path:polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); background:linear-gradient(155deg, #17202f, #0b0e15 60%); box-shadow:inset 0 0 0 1px #3d8bff40, inset 0 -10px 16px -6px #7c5cff33, 0 8px 18px -6px #000c; display:flex; align-items:center; justify-content:center; overflow:hidden; animation:aiRobotFloat 3.2s ease-in-out infinite; }
+
+  .ai-robot-grid{ position:absolute; inset:0; background-image:linear-gradient(#3d8bff14 1px, transparent 1px), linear-gradient(90deg, #3d8bff14 1px, transparent 1px); background-size:7px 7px; opacity:.5; pointer-events:none; }
+
+  .ai-robot-scanline{ position:absolute; left:0; right:0; height:14px; background:linear-gradient(#3d8bff00, #7ee0ff99, #3d8bff00); animation:aiRobotScan 2.8s ease-in-out infinite; pointer-events:none; mix-blend-mode:screen; z-index:3; }
+
+  /* ---- Thân robot vẽ bằng SVG thuần code: đầu hexagon, kính che mắt phát sáng, ăng-ten, khe tản nhiệt ---- */
+  .ai-robot-bot{ position:relative; width:80%; height:80%; overflow:visible; filter:drop-shadow(0 3px 6px #000a); user-select:none; }
+  .bot-antenna-tip{ transform-box:fill-box; transform-origin:50% 50%; filter:drop-shadow(0 0 4px #ffc93cd0); animation:aiRobotPulse 1.7s ease-in-out infinite; }
+  .bot-visor{ filter:drop-shadow(0 0 5px #7ee0ffcc); }
+  .bot-eye{ transform-box:fill-box; transform-origin:50% 50%; animation:aiRobotEyeBlink 4.2s ease-in-out infinite; }
+  .bot-circuit{ opacity:.85; }
+  .bot-head, .bot-visor, .bot-eye, .bot-vent, .bot-shoulder{ transition:fill .25s, opacity .25s, filter .25s; }
+
+  .ai-robot-status-dot{ position:absolute; bottom:6px; right:1px; width:11px; height:11px; border-radius:50%; background:var(--up); border:2px solid #0b0e15; box-shadow:0 0 8px 1px #14cc8a99; animation:aiRobotBlink 2s ease-in-out infinite; z-index:4; }
+
+  .ai-robot-tip{ position:absolute; top:50%; right:calc(100% + 12px); transform:translateY(-50%) translateX(6px); display:flex; flex-direction:column; align-items:flex-end; gap:1px; background:#0b0e15f2; border:1px solid #3d8bff40; border-radius:7px; padding:6px 10px; white-space:nowrap; box-shadow:0 10px 26px -8px #000c; opacity:0; visibility:hidden; transition:opacity .18s ease, transform .18s ease, visibility .18s; pointer-events:none; z-index:5; }
+  .ai-robot-tip::after{ content:''; position:absolute; top:50%; left:100%; margin-top:-5px; border:5px solid transparent; border-left-color:#3d8bff40; }
+  .ai-robot-tip-title{ font-family:'Sora',sans-serif; font-size:10.5px; font-weight:700; letter-spacing:.6px; color:var(--accent); }
+  .ai-robot-tip-state{ font-size:10.5px; font-weight:600; color:var(--text); }
+  .ai-robot-fab.off .ai-robot-tip-state{ color:var(--text-dim); }
+
+  .ai-robot-fab:hover .ai-robot-tip, .ai-robot-fab:focus-visible .ai-robot-tip{ opacity:1; visibility:visible; transform:translateY(-50%) translateX(0); }
+  .ai-robot-fab:hover .ai-robot-core{ animation-play-state:paused; transform:translateX(-50%) translateY(-6px) scale(1.06); }
+  .ai-robot-fab:active .ai-robot-core{ transform:translateX(-50%) translateY(-2px) scale(.97); }
+  .ai-robot-fab:focus-visible .ai-robot-core{ box-shadow:inset 0 0 0 1px #3d8bff40, inset 0 -10px 16px -6px #7c5cff33, 0 0 0 3px #3d8bff88; }
+
+  /* Trạng thái TẮT: robot "ngủ", cánh xếp lại, hết hào quang, thân xám */
+  .ai-robot-fab.off .ai-robot-glow{ opacity:0; animation:none; }
+  .ai-robot-fab.off .ai-robot-ring{ opacity:.25; animation-play-state:paused; }
+  .ai-robot-fab.off .ai-robot-ring::before{ animation-play-state:paused; }
+  .ai-robot-fab.off .ai-robot-orbit-dot{ opacity:0; }
+  .ai-robot-fab.off .ai-robot-scanline{ display:none; }
+  .ai-robot-fab.off .ai-robot-core{ animation-play-state:paused; transform:translateX(-50%); background:linear-gradient(155deg, #1c2230, #12151c 60%); }
+  .ai-robot-fab.off .ai-robot-wing{ opacity:.32; filter:none; }
+  .ai-robot-fab.off .ai-robot-wing-feathers{ animation:aiWingFold .5s ease forwards; }
+  .ai-robot-fab.off .ai-robot-wing--r .ai-robot-wing-feathers{ animation-name:aiWingFoldR; }
+  .ai-robot-fab.off .bot-head{ filter:grayscale(1) brightness(.72); }
+  .ai-robot-fab.off .bot-visor{ fill:#4a5468; filter:none; }
+  .ai-robot-fab.off .bot-eye{ animation:none; opacity:.5; }
+  .ai-robot-fab.off .bot-antenna-tip{ fill:#4a5468; animation:none; filter:none; }
+  .ai-robot-fab.off .bot-circuit{ opacity:.2; }
+  .ai-robot-fab.off .ai-robot-status-dot{ background:#4a5468; box-shadow:none; animation:none; }
+
+  @media (max-width: 820px){
+    .ai-robot-fab{ width:52px; height:60px; top:10px; right:104px; }
+    .ai-robot-core{ width:48px; height:48px; }
+    .ai-robot-glow{ top:24px; width:68px; height:68px; margin:-34px 0 0 -34px; }
+    .ai-robot-ring{ top:24px; width:58px; height:58px; margin:-29px 0 0 -29px; }
+    .ai-robot-orbit-dot{ display:none; }
+    .ai-robot-wing{ width:34px; height:40px; top:13px; }
+    .ai-robot-wing--l{ margin-left:-52px; }
+    .ai-robot-wing--r{ margin-left:22px; }
+    .ai-robot-tip{ right:auto; left:50%; top:calc(100% + 10px); transform:translateX(-50%) translateY(-4px); align-items:center; }
+    .ai-robot-tip::after{ top:-5px; left:50%; margin:0 0 0 -5px; border-left-color:transparent; border-bottom-color:#3d8bff40; }
+    .ai-robot-fab:hover .ai-robot-tip, .ai-robot-fab:focus-visible .ai-robot-tip{ transform:translateX(-50%) translateY(0); }
+  }
   #chart-price{ width:100%; height:520px; min-height:100px; }
   .sub-pane{ display:flex; flex-direction:column; border-top:1px solid var(--border); transition:background .15s; }
   .sub-pane.pane-dragging{ opacity:0.35; }
