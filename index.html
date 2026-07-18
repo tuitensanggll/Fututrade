@@ -82,17 +82,6 @@
       </div>
     </div>
     
-    <div class="market-switch" id="market-switch">
-      <button type="button" class="market-switch-btn active" data-market="crypto" id="btn-mk-crypto">
-        <span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 15.2V8.8h2.7a2 2 0 010 4H9.5m0 0h3.2a2.1 2.1 0 010 4.2H9.5"/><path d="M11.2 7.3v1.2M11.2 15.5v1.2"/></svg></span>
-        Crypto
-      </button>
-      <button type="button" class="market-switch-btn" data-market="stock" id="btn-mk-stock">
-        <span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16"/><path d="M6 19v-5.5M10.5 19V9M15 19v-8M19 19v-3.5"/></svg></span>
-        Chứng khoán VN
-      </button>
-    </div>
-
     <div class="chips" id="chip-container">
       <button class="chip active" data-symbol="BTC">BTC</button>
       <button class="chip" data-symbol="ETH">ETH</button>
@@ -157,7 +146,6 @@
     </div>
   </div>
 
-  <div id="crypto-view">
   <div class="ticker-card">
     <div class="symbol-block">
       <div>
@@ -442,64 +430,6 @@
       <div class="ai-signal-list" id="whale-log-list"><div class="ai-empty">Chưa có dữ liệu cá mập...</div></div>
     </div>
   </div>
-  </div><!-- /#crypto-view -->
-
-  <div id="stock-view" style="display:none;">
-    <div class="chips" id="stock-chip-container">
-      <button class="chip active" data-symbol="VNM">VNM</button>
-      <button class="chip" data-symbol="VIC">VIC</button>
-      <button class="chip" data-symbol="VCB">VCB</button>
-      <button class="chip" data-symbol="HPG">HPG</button>
-      <button class="chip" data-symbol="FPT">FPT</button>
-    </div>
-    <div class="search-box-wrap">
-      <div class="search-box">
-        <input type="text" id="stock-symbol-input" placeholder="Nhập mã CK... (VD: MWG, MSN, TCB)" value="VNM" autocomplete="off" maxlength="6">
-        <button id="stock-search-btn">Tìm kiếm</button>
-      </div>
-      <div class="symbol-error" id="stock-symbol-error"></div>
-    </div>
-
-    <div class="ticker-card">
-      <div class="symbol-block">
-        <div>
-          <div class="symbol-name" id="stock-chart-title">VNM <span class="quote">Ngày</span></div>
-          <div style="margin-top:8px;" class="live-pill" id="stock-live-pill"><span class="live-dot"></span><span id="stock-live-text">ĐANG TẢI</span></div>
-        </div>
-      </div>
-      <div class="price-block">
-        <div class="price-main num" id="stock-current-price">--</div>
-        <div class="change-badge num" id="stock-change-badge">--</div>
-      </div>
-      <div class="stats-row">
-        <div class="stat"><span class="stat-label">Cao</span><span class="stat-value num" id="stock-stat-high">--</span></div>
-        <div class="stat"><span class="stat-label">Thấp</span><span class="stat-value num" id="stock-stat-low">--</span></div>
-        <div class="stat"><span class="stat-label">Tham chiếu</span><span class="stat-value num" id="stock-stat-ref">--</span></div>
-        <div class="stat"><span class="stat-label">KL</span><span class="stat-value num" id="stock-stat-vol">--</span></div>
-        <div class="stat"><span class="stat-label">Cập nhật</span><span class="stat-value num" id="stock-stat-updated">--</span></div>
-      </div>
-    </div>
-
-    <div class="tf-row">
-      <div class="tf-tabs" id="stock-tf-container">
-        <button class="tf-btn active" data-res="D">Ngày</button>
-        <button class="tf-btn" data-res="W">Tuần</button>
-        <button class="tf-btn" data-res="M">Tháng</button>
-      </div>
-    </div>
-
-    <div class="main-container">
-      <div class="chart-wrapper" id="stock-chart-wrapper">
-        <div id="stock-fetch-error" class="stock-fetch-error"></div>
-        <div id="stock-chart" style="width:100%; height:480px;"></div>
-        <div id="stock-volume-chart" style="width:100%; height:110px; border-top:1px solid var(--border);"></div>
-      </div>
-    </div>
-
-    <div class="stock-note">
-      Dữ liệu &amp; biểu đồ chứng khoán Việt Nam tham khảo từ nguồn công khai, chỉ mang tính chất theo dõi tham khảo — không phải khuyến nghị đầu tư và chưa phải dữ liệu chính thức từ DNSE. Để có dữ liệu real-time chính thức và đặt lệnh qua tài khoản DNSE, cần đăng ký <a href="https://developers.dnse.com.vn/" target="_blank" rel="noopener">DNSE OpenAPI</a> và một backend riêng để giữ khoá API an toàn.
-    </div>
-  </div><!-- /#stock-view -->
 
   <div class="site-footer">
     <div class="site-footer-disclaimer">
@@ -615,7 +545,6 @@
     
   </style>
   <script src="script.js"></script>
-  <script src="vn-stock.js"></script>
   
   <script type="module">
   import { initializeApp } from "firebase/app";
