@@ -42,28 +42,6 @@
   };
   function icon(name, cls) { return `<span class="ico${cls ? ' ' + cls : ''}">${ICONS[name] || ''}</span>`; }
 
-  // Binance (kể cả domain dữ liệu công khai data-api.binance.vision) không gửi header CORS cho phép
-  // trình duyệt fetch() trực tiếp từ domain GitHub Pages này (dù link vẫn mở được bình thường nếu dán
-  // vào thanh địa chỉ). Nên mọi request tới Binance phải đi qua CORS-proxy trung gian bên dưới.
-  // Dùng NHIỀU proxy dự phòng: proxy miễn phí công khai hay quá tải/sập bất ngờ, nên nếu proxy đầu
-  // tiên lỗi, tự động thử proxy kế tiếp thay vì phụ thuộc vào đúng 1 dịch vụ duy nhất.
-  const CORS_PROXIES = [
-    url => 'https://proxy.corsfix.com/?' + url,
-    url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-    url => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url)
-  ];
-  async function binanceFetch(url) {
-    let lastErr = null;
-    for (const buildProxyUrl of CORS_PROXIES) {
-      try {
-        const res = await fetch(buildProxyUrl(url));
-        if (res.ok) return res;
-        lastErr = new Error('HTTP ' + res.status);
-      } catch (e) { lastErr = e; }
-    }
-    throw lastErr || new Error('Tất cả CORS-proxy đều lỗi');
-  }
-
 
   let currentSymbol = localStorage.getItem('ok_symbol') || 'BTCUSDT';
   let currentInterval = localStorage.getItem('ok_interval') || '4h';
@@ -104,7 +82,7 @@
       }
     } catch (e) { /* cache lỗi thì bỏ qua, tải lại từ mạng */ }
 
-    binanceFetch('https://data-api.binance.vision/api/v3/exchangeInfo')
+    fetch('https://data-api.binance.vision/api/v3/exchangeInfo')
       .then(r => r.json())
       .then(data => {
         if (!data || !Array.isArray(data.symbols)) return;
@@ -366,7 +344,7 @@
   }
   async function fetchBinanceSentiment(symbol = currentSymbol) {
     try {
-      const response = await binanceFetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${symbol}&period=5m&limit=1`);
+      const response = await fetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${symbol}&period=5m&limit=1`);
       const data = await response.json();
       if (data && data.length > 0) {
         binanceLSRatio = parseFloat(data[0].longShortRatio);
@@ -2659,7 +2637,7 @@
     if (noMoreHistoryKey === key) return Promise.resolve(false); // đã xác nhận đây là cây nến đầu tiên trong lịch sử của coin, không tải nữa
     isLoadingOlderHistory = true;
     const endTime = Math.round(candlesData[0].time * 1000) - 1; // trước cây nến cũ nhất đang có 1ms
-    return binanceFetch(`https://data-api.binance.vision/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${endTime}`)
+    return fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${endTime}`)
       .then(r => r.json())
       .then(data => {
         isLoadingOlderHistory = false;
@@ -2728,7 +2706,7 @@
   // đã tải thêm và KHÔNG di chuyển khung nhìn (để không phá trải nghiệm đang xem giá quá khứ của người dùng).
   function fetchSyncData(isFreshLoad) {
     if (isFreshLoad) noMoreHistoryKey = null; // nến mới nhất được nạp lại từ đầu -> reset cờ "đã hết lịch sử" cho lần cuộn tiếp theo
-    binanceFetch(`https://data-api.binance.vision/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000`)
+    fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000`)
       .then(r => r.json())
       .then(data => {
         const parsedCandles = []; const parsedVolumes = [];
@@ -2778,7 +2756,7 @@
     const reqSymbol = currentSymbol, reqInterval = currentInterval;
     if (!higherTFs.length) { htfCandlesMap = {}; if (typeof runAIAnalysis === 'function') runAIAnalysis(); return; }
     Promise.all(higherTFs.map(tf =>
-      binanceFetch(`https://data-api.binance.vision/api/v3/klines?symbol=${reqSymbol}&interval=${tf}&limit=300`)
+      fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${reqSymbol}&interval=${tf}&limit=300`)
         .then(r => r.json())
         .then(data => ({ tf, candles: Array.isArray(data) ? data.map(d => ({ time: d[0] / 1000, open: parseFloat(d[1]), high: parseFloat(d[2]), low: parseFloat(d[3]), close: parseFloat(d[4]) })) : [] }))
         .catch(() => ({ tf, candles: [] }))
