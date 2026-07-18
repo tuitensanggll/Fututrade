@@ -82,7 +82,7 @@
       }
     } catch (e) { /* cache lỗi thì bỏ qua, tải lại từ mạng */ }
 
-    fetch('https://api.binance.com/api/v3/exchangeInfo')
+    fetch('https://data-api.binance.vision/api/v3/exchangeInfo')
       .then(r => r.json())
       .then(data => {
         if (!data || !Array.isArray(data.symbols)) return;
@@ -456,71 +456,54 @@
     }));
     return items;
   }
-  async function tryFetchJson(url, headers) {
-    const res = await fetch(url, headers ? { headers } : undefined);
+  async function tryFetchText(url) {
+    const res = await fetch(url);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.json();
+    return res.text();
   }
-  // Nhiều nguồn dự phòng: nếu nguồn 1 bị chặn CORS/rate-limit trên môi trường host (VD GitHub Pages),
-  // tự động rơi (fallback) sang nguồn kế tiếp thay vì phụ thuộc vào đúng 1 API duy nhất.
-  // ⚠️ DÁN API KEY MIỄN PHÍ CỦA BẠN VÀO ĐÂY (lấy tại https://openapi.coinstats.app — đăng ký free, không cần thẻ):
-  const COINSTATS_API_KEY = 'ed9c3d6960e6737cb4f8bf0988db2008a3b252162316'; // VD: 'ab12cd34-...'
-
+  // Lấy thẳng RSS gốc của từng báo (không qua rss2json/coinstats/cryptocompare vì các dịch vụ này
+  // hay bị chặn CORS hoặc giới hạn gói miễn phí trên môi trường host tĩnh như GitHub Pages).
+  // RSS tự nó KHÔNG hỗ trợ CORS, nên phải đi qua 1 proxy public chỉ để "chuyển tiếp" y nguyên nội dung
+  // (allorigins.win) — proxy này không giữ dữ liệu, chỉ thêm header Access-Control-Allow-Origin.
+  // Nhiều nguồn dự phòng: nếu proxy/nguồn 1 lỗi, tự động rơi (fallback) sang nguồn kế tiếp.
+  const RSS_PROXY = 'https://api.allorigins.win/raw?url=';
   const NEWS_SOURCES = [
-    ...(COINSTATS_API_KEY ? [{ type: 'coinstats', url: 'https://openapiv1.coinstats.app/news?limit=20' }] : []),
-    { type: 'cryptocompare', url: 'https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest' },
-    { type: 'rss2json', url: 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://www.coindesk.com/arc/outboundfeeds/rss/') + '&count=20' },
-    { type: 'rss2json', url: 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent('https://cointelegraph.com/rss') + '&count=20' }
+    { name: 'CoinDesk', feedUrl: 'https://www.coindesk.com/arc/outboundfeeds/rss/' },
+    { name: 'Cointelegraph', feedUrl: 'https://cointelegraph.com/rss' },
+    { name: 'CryptoSlate', feedUrl: 'https://cryptoslate.com/feed/' }
   ];
-  function parseSourceItems(type, json) {
-    if (type === 'coinstats') {
-      const arr = Array.isArray(json) ? json : (Array.isArray(json && json.news) ? json.news : (Array.isArray(json && json.result) ? json.result : []));
-      if (!arr.length) return [];
-      return arr.slice(0, 20).map(a => {
-        const rawTime = a.feedDate || a.publishedAt || a.createdAt || a.date;
-        const ts = typeof rawTime === 'number' ? (rawTime > 2e10 ? Math.floor(rawTime / 1000) : rawTime) : Math.floor(Date.parse(rawTime || '') / 1000);
-        return {
-          id: String(a.id || a._id || a.link || a.url),
-          title: a.title || a.name || '',
-          url: a.link || a.url || a.sourceUrl || '#',
-          source: a.source || a.feedName || 'CoinStats',
-          time: isNaN(ts) ? Math.floor(Date.now() / 1000) : ts,
-          img: a.imgUrl || a.image || a.thumbnail || ''
-        };
-      }).filter(it => it.title);
-    }
-    if (type === 'cryptocompare') {
-      if (!json || !Array.isArray(json.Data)) return [];
-      return json.Data.slice(0, 20).map(a => ({
-        id: String(a.id || a.guid || a.url), title: a.title, url: a.url,
-        source: (a.source_info && a.source_info.name) || a.source || 'Nguồn tin',
-        time: a.published_on,
-        img: a.imageurl && a.imageurl.startsWith('http') ? a.imageurl : ''
-      }));
-    }
-    if (type === 'rss2json') {
-      if (!json || json.status !== 'ok' || !Array.isArray(json.items)) return [];
-      return json.items.slice(0, 20).map(a => {
-        const ts = Date.parse((a.pubDate || '').replace(' ', 'T') + 'Z');
-        return {
-          id: String(a.guid || a.link),
-          title: (a.title || '').replace(/<[^>]*>/g, ''),
-          url: a.link,
-          source: (json.feed && json.feed.title) || 'Nguồn tin',
-          time: isNaN(ts) ? Math.floor(Date.now() / 1000) : Math.floor(ts / 1000),
-          img: a.thumbnail || ''
-        };
-      });
-    }
-    return [];
+  function parseRssXml(xmlText, sourceName) {
+    const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+    if (doc.querySelector('parsererror')) return [];
+    return Array.from(doc.querySelectorAll('item')).slice(0, 20).map(item => {
+      const get = (tag) => { const el = item.querySelector(tag); return el ? el.textContent : ''; };
+      const link = (get('link') || '').trim();
+      const guid = (get('guid') || link).trim();
+      const pubDate = get('pubDate');
+      const ts = Math.floor(Date.parse(pubDate) / 1000);
+      const media = item.getElementsByTagName('media:content')[0] || item.getElementsByTagName('media:thumbnail')[0] || item.getElementsByTagName('enclosure')[0];
+      let img = media ? (media.getAttribute('url') || '') : '';
+      if (!img) {
+        const descHtml = get('description') || get('content:encoded');
+        const m = descHtml.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (m) img = m[1];
+      }
+      return {
+        id: String(guid || link),
+        title: (get('title') || '').replace(/<[^>]*>/g, '').trim(),
+        url: link || '#',
+        source: sourceName,
+        time: isNaN(ts) ? Math.floor(Date.now() / 1000) : ts,
+        img
+      };
+    }).filter(it => it.title);
   }
   async function fetchMarketNews() {
     let lastError = null;
     for (const src of NEWS_SOURCES) {
       try {
-        const headers = src.type === 'coinstats' ? { 'X-API-KEY': COINSTATS_API_KEY } : undefined;
-        const json = await tryFetchJson(src.url, headers);
-        let items = parseSourceItems(src.type, json);
+        const xmlText = await tryFetchText(RSS_PROXY + encodeURIComponent(src.feedUrl));
+        let items = parseRssXml(xmlText, src.name);
         if (items.length) {
           items = await translateNewsItems(items);
           lastNewsItems = items;
@@ -2193,7 +2176,7 @@
     if (!allMarketSymbols.length) return; // Chờ tải xong danh sách toàn bộ coin USDT trên Binance
     if (marketWhaleWS) { marketWhaleWS.onclose = null; marketWhaleWS.close(); }
     const streams = allMarketSymbols.slice(0, MARKET_WHALE_STREAM_CAP).map(s => s.symbol.toLowerCase() + '@aggTrade').join('/');
-    marketWhaleWS = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+    marketWhaleWS = new WebSocket(`wss://data-stream.binance.vision/stream?streams=${streams}`);
     marketWhaleWS.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -2633,7 +2616,7 @@
     if (noMoreHistoryKey === key) return Promise.resolve(false); // đã xác nhận đây là cây nến đầu tiên trong lịch sử của coin, không tải nữa
     isLoadingOlderHistory = true;
     const endTime = Math.round(candlesData[0].time * 1000) - 1; // trước cây nến cũ nhất đang có 1ms
-    return fetch(`https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${endTime}`)
+    return fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000&endTime=${endTime}`)
       .then(r => r.json())
       .then(data => {
         isLoadingOlderHistory = false;
@@ -2702,7 +2685,7 @@
   // đã tải thêm và KHÔNG di chuyển khung nhìn (để không phá trải nghiệm đang xem giá quá khứ của người dùng).
   function fetchSyncData(isFreshLoad) {
     if (isFreshLoad) noMoreHistoryKey = null; // nến mới nhất được nạp lại từ đầu -> reset cờ "đã hết lịch sử" cho lần cuộn tiếp theo
-    fetch(`https://api.binance.com/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000`)
+    fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${currentSymbol}&interval=${currentInterval}&limit=1000`)
       .then(r => r.json())
       .then(data => {
         const parsedCandles = []; const parsedVolumes = [];
@@ -2752,7 +2735,7 @@
     const reqSymbol = currentSymbol, reqInterval = currentInterval;
     if (!higherTFs.length) { htfCandlesMap = {}; if (typeof runAIAnalysis === 'function') runAIAnalysis(); return; }
     Promise.all(higherTFs.map(tf =>
-      fetch(`https://api.binance.com/api/v3/klines?symbol=${reqSymbol}&interval=${tf}&limit=300`)
+      fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${reqSymbol}&interval=${tf}&limit=300`)
         .then(r => r.json())
         .then(data => ({ tf, candles: Array.isArray(data) ? data.map(d => ({ time: d[0] / 1000, open: parseFloat(d[1]), high: parseFloat(d[2]), low: parseFloat(d[3]), close: parseFloat(d[4]) })) : [] }))
         .catch(() => ({ tf, candles: [] }))
@@ -2780,14 +2763,14 @@
     fetchBinanceSentiment(currentSymbol);
 
     function initWebSockets() {
-      currentTickerWS = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@ticker`);
+      currentTickerWS = new WebSocket(`wss://data-stream.binance.vision/ws/${currentSymbol.toLowerCase()}@ticker`);
       currentTickerWS.onmessage = e => {
         const t = JSON.parse(e.data); const changePct = parseFloat(t.P); const isUp = changePct >= 0;
         changeBadge.innerText = (isUp ? '+' : '') + changePct.toFixed(2) + '%'; changeBadge.className = "change-badge num " + (isUp ? "up" : "down");
         document.getElementById('stat-high').innerText = fmt(parseFloat(t.h)); document.getElementById('stat-low').innerText = fmt(parseFloat(t.l)); document.getElementById('stat-vol').innerText = fmtVol(parseFloat(t.q)) + " USDT";
       };
 
-      currentWebSocket = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@kline_${currentInterval}`);
+      currentWebSocket = new WebSocket(`wss://data-stream.binance.vision/ws/${currentSymbol.toLowerCase()}@kline_${currentInterval}`);
       currentWebSocket.onmessage = function (event) {
         const kline = JSON.parse(event.data).k; const time = kline.t / 1000;
         const liveCandle = { time, open: parseFloat(kline.o), high: parseFloat(kline.h), low: parseFloat(kline.l), close: parseFloat(kline.c) };
@@ -2825,7 +2808,7 @@
         else { scheduleLiveAIAnalysis(); }
       };
       
-      whaleWS = new WebSocket(`wss://stream.binance.com:9443/ws/${currentSymbol.toLowerCase()}@aggTrade`);
+      whaleWS = new WebSocket(`wss://data-stream.binance.vision/ws/${currentSymbol.toLowerCase()}@aggTrade`);
       // Cửa sổ trượt 60 giây các lệnh khớp thật (mua/bán) — nguồn cho gauge Long/Short "sống" theo từng nhịp giao dịch
       let liveTradeBuf = []; let lastLiveGaugeTs = 0;
       const LIVE_WINDOW_MS = 60000;
