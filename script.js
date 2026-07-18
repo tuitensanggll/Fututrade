@@ -44,10 +44,24 @@
 
   // Binance (kể cả domain dữ liệu công khai data-api.binance.vision) không gửi header CORS cho phép
   // trình duyệt fetch() trực tiếp từ domain GitHub Pages này (dù link vẫn mở được bình thường nếu dán
-  // vào thanh địa chỉ). Nên mọi request tới Binance phải đi qua một CORS-proxy trung gian bên dưới.
-  const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
-  function binanceFetch(url) {
-    return fetch(CORS_PROXY + encodeURIComponent(url));
+  // vào thanh địa chỉ). Nên mọi request tới Binance phải đi qua CORS-proxy trung gian bên dưới.
+  // Dùng NHIỀU proxy dự phòng: proxy miễn phí công khai hay quá tải/sập bất ngờ, nên nếu proxy đầu
+  // tiên lỗi, tự động thử proxy kế tiếp thay vì phụ thuộc vào đúng 1 dịch vụ duy nhất.
+  const CORS_PROXIES = [
+    url => 'https://proxy.corsfix.com/?' + url,
+    url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+    url => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url)
+  ];
+  async function binanceFetch(url) {
+    let lastErr = null;
+    for (const buildProxyUrl of CORS_PROXIES) {
+      try {
+        const res = await fetch(buildProxyUrl(url));
+        if (res.ok) return res;
+        lastErr = new Error('HTTP ' + res.status);
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('Tất cả CORS-proxy đều lỗi');
   }
 
 
