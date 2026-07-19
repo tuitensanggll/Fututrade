@@ -2088,14 +2088,14 @@
     objLockBtn.classList.toggle('toggle-on', !!d.locked);
   }
 
+  const OBJ_TOOLBAR_W = 208, OBJ_TOOLBAR_H = 30, OBJ_TOOLBAR_GAP = 12; // dùng chung giữa vị trí toolbar và nhãn tên bản vẽ, tránh chồng lấp
   function updateObjToolbar() {
     const d = getSelectedDrawing();
     const p = d ? anchorFor(d) : null;
     if (!p) { objToolbar.classList.remove('show'); return; }
     refreshObjToolbarContent(d);
-    const boxW = 208, boxH = 30;
-    objToolbar.style.left = Math.max(2, Math.min(W - boxW - 2, p.x - boxW / 2)) + 'px';
-    objToolbar.style.top = Math.max(2, p.y - boxH - 12) + 'px';
+    objToolbar.style.left = Math.max(2, Math.min(W - OBJ_TOOLBAR_W - 2, p.x - OBJ_TOOLBAR_W / 2)) + 'px';
+    objToolbar.style.top = Math.max(2, p.y - OBJ_TOOLBAR_H - OBJ_TOOLBAR_GAP) + 'px';
     objToolbar.classList.add('show');
   }
 
@@ -2301,7 +2301,58 @@
   // giá đóng cửa trong vùng — gần như không bao giờ trùng đúng giá bạn đã click. Nếu vẽ chấm neo tại
   // giá click thô (như các tool khác), chấm sẽ lệch khỏi đường kênh, kéo tới đâu thấy "rời" tới đó.
   // Hàm này buộc chấm luôn bám đúng lên đường hồi quy đã tính, giữ nguyên thứ tự d.points[0]/[1].
+  // ===== Bộ 6 chấm neo của Kênh song song, đúng chuẩn TradingView =====
+  // 4 chấm TRÒN ở 2 đầu đường chính (p1,p2) và 2 đầu đường song song (o1,o2 — suy ra từ p1/p2 lệch
+  // đúng độ rộng kênh dy): kéo BẤT KỲ chấm tròn nào cũng DI CHUYỂN cả kênh nguyên khối, giữ nguyên góc
+  // nghiêng và độ rộng.
+  // 2 chấm VUÔNG ở giữa mỗi đường (mid1 trên đường chính, mid2 trên đường song song): kéo BẤT KỲ chấm
+  // vuông nào cũng chỉ ĐIỀU CHỈNH ĐỘ RỘNG kênh, giữ nguyên đường chính (p1,p2) — đúng cách TradingView
+  // tách biệt "di chuyển" (chấm tròn) khỏi "đổi độ rộng" (chấm vuông).
+  // ===== Độ rộng kênh (dy, tính bằng pixel) — ĐÚNG CHUẨN TradingView =====
+  // TradingView neo đường song song đi CHÍNH XÁC qua điểm thứ 3 mà người dùng đã click, dù đường chính
+  // (p1-p2) có bị kéo nghiêng/kéo giãn thế nào sau đó. Vì vậy độ rộng KHÔNG được lấy thẳng từ p1.y (như
+  // trước đây), mà phải NỘI SUY giá trị đường chính tại đúng THỜI ĐIỂM của điểm neo thứ 3, rồi lấy hiệu
+  // với giá điểm đó. Nhờ vậy, khi kéo giãn riêng p1 hoặc p2 (đổi góc nghiêng đường chính), đường song
+  // song luôn tự động xoay theo và vẫn đi đúng qua điểm neo thứ 3 cố định — không bị méo/lệch bất
+  // thường như công thức cũ (vốn chỉ đúng khi điểm thứ 3 trùng thời điểm với p1).
+  function channelDy(d) {
+    if (!d.points[2]) return null;
+    const p1 = d.points[0], p2 = d.points[1];
+    if (!p1 || !p2) return null;
+    let mainPriceAtP3Time;
+    if (p2.time === p1.time) {
+      mainPriceAtP3Time = p1.price;
+    } else {
+      const ratio = (d.points[2].time - p1.time) / (p2.time - p1.time);
+      mainPriceAtP3Time = p1.price + (p2.price - p1.price) * ratio;
+    }
+    const yMain = yOf(mainPriceAtP3Time), yP3 = yOf(d.points[2].price);
+    if (yMain == null || yP3 == null) return null;
+    return yP3 - yMain;
+  }
+  function channelHandleMeta(d) {
+    if (d.type !== 'channel' || !d.points[2]) return null;
+    const p1 = xy(d.points[0]), p2 = d.points[1] ? xy(d.points[1]) : null;
+    if (!p1 || !p2) return null;
+    const dy = channelDy(d);
+    if (dy == null) return null;
+    const o1 = { x: p1.x, y: p1.y + dy }, o2 = { x: p2.x, y: p2.y + dy };
+    const mid1 = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const mid2 = { x: (o1.x + o2.x) / 2, y: (o1.y + o2.y) / 2 };
+    return [
+      { x: p1.x, y: p1.y, shape: 'circle', role: 'p1' },
+      { x: p2.x, y: p2.y, shape: 'circle', role: 'p2' },
+      { x: o1.x, y: o1.y, shape: 'circle', role: 'o1' },
+      { x: o2.x, y: o2.y, shape: 'circle', role: 'o2' },
+      { x: mid1.x, y: mid1.y, shape: 'square', role: 'mid1' },
+      { x: mid2.x, y: mid2.y, shape: 'square', role: 'mid2' },
+    ];
+  }
   function handleScreenPoints(d) {
+    if (d.type === 'channel') {
+      const meta = channelHandleMeta(d);
+      if (meta) return meta.map(m => ({ x: m.x, y: m.y }));
+    }
     if (d.type === 'regression') {
       const r = computeRegression(d);
       if (r) {
@@ -2415,12 +2466,20 @@
         lineRaw(pStart.x, pStart.y, pEnd.x, pEnd.y);
         if (d.type === 'arrow') drawArrowHead(p1, p2raw);
         if (d.type === 'channel' && d.points[2]) {
-          const p3 = xy(d.points[2]);
-          if (p3) {
-            const dy = p3.y - p1.y;
+          const dy = channelDy(d);
+          if (dy != null) {
             lineRaw(pStart.x, pStart.y + dy, pEnd.x, pEnd.y + dy);
             dctx.fillStyle = d.color + '1c';
             dctx.beginPath(); dctx.moveTo(pStart.x, pStart.y); dctx.lineTo(pEnd.x, pEnd.y); dctx.lineTo(pEnd.x, pEnd.y + dy); dctx.lineTo(pStart.x, pStart.y + dy); dctx.closePath(); dctx.fill();
+            // Đường trung tuyến đứt nét ở CHÍNH GIỮA 2 biên kênh — chỉ mang tính tham chiếu (không bắt
+            // được chuột vào đây), giống hệt đường giữa mờ mà TradingView luôn hiện trong kênh song song.
+            dctx.save();
+            dctx.globalAlpha = 0.55;
+            dctx.setLineDash([6, 5]);
+            dctx.lineWidth = Math.max(1, baseW - 1);
+            lineRaw(pStart.x, pStart.y + dy / 2, pEnd.x, pEnd.y + dy / 2);
+            dctx.setLineDash([]);
+            dctx.restore();
           }
         }
         break;
@@ -2442,26 +2501,41 @@
       case 'text': { const p = xy(d.points[0]); if (!p) break; dctx.font = '600 13px Inter, sans-serif'; dctx.fillStyle = d.color; dctx.textBaseline = 'bottom'; dctx.textAlign = 'left'; dctx.fillText(d.text || '', p.x + 4, p.y - 4); break; }
     }
     if (selected) {
-      handleScreenPoints(d).forEach(p => {
+      // Kênh song song có bộ 6 chấm neo riêng (4 tròn + 2 vuông); mọi công cụ khác vẫn dùng chấm tròn
+      // đơn giản như cũ tại đúng các điểm click gốc.
+      const channelMeta = d.type === 'channel' ? channelHandleMeta(d) : null;
+      const handleMeta = channelMeta || handleScreenPoints(d).map(p => p && { x: p.x, y: p.y, shape: 'circle' });
+      handleMeta.forEach(p => {
         if (!p) return;
         // Chấm neo sắc nét, cố định đúng 1 điểm — không quầng mờ, không hiệu ứng lan tỏa,
-        // giống hệt TradingView: tâm trắng nhỏ + viền mảnh theo màu nét vẽ.
+        // giống hệt TradingView: tâm trắng nhỏ + viền mảnh theo màu nét vẽ. Chấm vuông (kéo để di
+        // chuyển/đổi độ rộng cả kênh) dùng cùng tông màu nhưng hình vuông để phân biệt với chấm tròn
+        // (kéo từng đầu mút), đúng ngôn ngữ hình học mà TradingView dùng.
         dctx.save();
-        dctx.beginPath(); dctx.arc(p.x, p.y, HANDLE_R, 0, Math.PI * 2);
+        if (p.shape === 'square') {
+          const s = HANDLE_R * 1.8;
+          dctx.beginPath(); dctx.rect(p.x - s / 2, p.y - s / 2, s, s);
+        } else {
+          dctx.beginPath(); dctx.arc(p.x, p.y, HANDLE_R, 0, Math.PI * 2);
+        }
         dctx.fillStyle = '#ffffff'; dctx.fill();
         dctx.lineWidth = 1.6; dctx.strokeStyle = d.color; dctx.stroke();
         dctx.restore();
       });
       // Nhãn tên công cụ (vd "Đường xu hướng", "Fibonacci"...) hiện ngay trên đối tượng đang chọn,
       // giống TradingView — giúp nhận biết ngay đây là bản vẽ loại gì mà không cần đoán qua icon.
+      // Nhãn phải nằm HẲN PHÍA TRÊN thanh toolbar (không dùng chung vùng y với toolbar) — trước đây
+      // cả hai được neo quá gần nhau (chỉ lệch 8px) nên toolbar (nằm đè trên canvas) che gần hết nhãn,
+      // chỉ để lộ vài ký tự cuối cùng trông như chữ rác không rõ nghĩa (vd "...hồi quy" chỉ còn "uy").
       const label = TOOL_LABELS[d.type];
       const anchorP = anchorFor(d);
       if (label && anchorP) {
         dctx.font = '600 10.5px Inter, sans-serif';
         const tw = dctx.measureText(label).width;
         const padX = 6, boxH = 16;
+        const toolbarTop = Math.max(2, anchorP.y - OBJ_TOOLBAR_H - OBJ_TOOLBAR_GAP);
         const lx = Math.max(2, Math.min(W - tw - padX * 2 - 2, anchorP.x));
-        const ly = Math.max(2, anchorP.y - 34);
+        const ly = Math.max(2, toolbarTop - boxH - 6); // cách đáy toolbar 6px, không bao giờ chồng lấp
         dctx.fillStyle = d.color;
         if (dctx.roundRect) { dctx.beginPath(); dctx.roundRect(lx, ly, tw + padX * 2, boxH, 3); dctx.fill(); }
         else { dctx.fillRect(lx, ly, tw + padX * 2, boxH); }
@@ -2532,7 +2606,7 @@
         if (d.type === 'ray') pEnd = extendRay(p1, p2raw);
         else if (d.type === 'trendline' || d.type === 'channel' || d.type === 'extline') { const ext = extendedEndpoints(d, p1, p2raw); pStart = ext.a; pEnd = ext.b; }
         if (distToSeg(x, y, pStart.x, pStart.y, pEnd.x, pEnd.y) <= tol) return true;
-        if (d.type === 'channel' && d.points[2]) { const p3 = xy(d.points[2]); if (p3) { const dy = p3.y - p1.y; if (distToSeg(x, y, pStart.x, pStart.y + dy, pEnd.x, pEnd.y + dy) <= tol) return true; } }
+        if (d.type === 'channel' && d.points[2]) { const dy = channelDy(d); if (dy != null) { if (distToSeg(x, y, pStart.x, pStart.y + dy, pEnd.x, pEnd.y + dy) <= tol) return true; } }
         return false;
       }
       case 'infoline': case 'angle': {
@@ -2810,13 +2884,50 @@
     const rect = chartPriceEl.getBoundingClientRect();
     const x = e.clientX - rect.left, y = e.clientY - rect.top;
     if (!isDragging) {
-      if (Math.hypot(x - dragStartXY.x, y - dragStartXY.y) < 3) return;
+      // Khi đã tóm được đúng 1 CHẤM NEO (dragPointIndex >= 0), bắt đầu kéo NGAY từ pixel đầu tiên —
+      // không cần chờ đủ 3px mới nhận, tránh hiện tượng điểm bị "giật" nhảy 1 phát tới vị trí chuột
+      // hiện tại ngay khi vượt ngưỡng. Vùng đệm 3px chỉ còn giữ lại cho việc kéo THÂN bản vẽ (idx=-1),
+      // để phân biệt với 1 cú click đơn thuần (chọn bản vẽ) không có ý định kéo.
+      const dead = dragPointIndex >= 0 ? 0 : 3;
+      if (Math.hypot(x - dragStartXY.x, y - dragStartXY.y) < dead) return;
       isDragging = true;
       chartPrice.applyOptions({ handleScroll: false, handleScale: false });
       objToolbar.classList.remove('show');
     }
     const tp = coordToTimePrice(x, y); if (tp.time == null || tp.price == null) return;
-    if (dragPointIndex >= 0) {
+    if (dragPointIndex >= 0 && dragDrawing.type === 'channel' && dragOriginalPoints.length >= 3) {
+      // 6 chấm neo của Kênh song song, đúng thứ tự sinh ra từ channelHandleMeta():
+      // 0=p1, 1=p2 (2 đầu đường chính), 2=o1, 3=o2 (2 đầu đường song song), 4=mid1 (vuông giữa đường
+      // chính), 5=mid2 (vuông giữa đường song song).
+      // ĐÚNG chuẩn TradingView: mỗi chấm TRÒN ở đầu đường chính (p1, p2) là 1 điểm neo ĐỘC LẬP — kéo
+      // chấm nào chỉ "kéo giãn" (đổi vị trí / góc nghiêng) đúng đầu đó, KHÔNG kéo dịch cả khối kênh.
+      // Việc "di chuyển nguyên khối" chỉ xảy ra khi kéo vào THÂN đường (không trúng chấm neo nào, xử lý
+      // ở nhánh dragPointIndex === -1 bên dưới) — giống hệt cách TradingView tách bạch "kéo điểm" và
+      // "kéo cả hình".
+      if (dragPointIndex === 0) {
+        // p1: kéo giãn đầu 1 của đường chính
+        dragDrawing.points[0] = snapPoint(tp.time, tp.price);
+      } else if (dragPointIndex === 1) {
+        // p2: kéo giãn đầu 2 của đường chính
+        dragDrawing.points[1] = snapPoint(tp.time, tp.price);
+      } else if (dragPointIndex === 2 || dragPointIndex === 3 || dragPointIndex === 5) {
+        // o1, o2 (2 đầu đường song song) và mid2 (ô vuông giữa đường song song): cả 3 chấm này cùng
+        // biểu diễn 1 giá trị duy nhất là ĐỘ RỘNG kênh (points[2]) — kéo bất kỳ chấm nào trong số này
+        // đều dịch cả đường song song lên/xuống. Dùng DELTA (chênh lệch so với lúc bắt đầu kéo) thay vì
+        // gán thẳng giá tuyệt đối của con trỏ, vì vị trí hiển thị của các chấm này (nhất là mid2, và o2
+        // khi đường chính bị nghiêng) không trùng khớp tuyệt đối với giá trị points[2] đang lưu — gán
+        // thẳng sẽ khiến chấm "giật" nhảy một phát tới đúng vị trí con trỏ ngay khi vừa bắt đầu kéo.
+        // Dùng delta thì độ lệch ban đầu (nếu có) luôn = 0, kéo tới đâu chấm bám tới đó, mượt như TradingView.
+        const priceDelta = tp.price - dragStartTP.price;
+        dragDrawing.points[2] = { time: dragOriginalPoints[2].time, price: dragOriginalPoints[2].price + priceDelta };
+      } else if (dragPointIndex === 4) {
+        // mid1 (ô vuông giữa đường chính): dịch cả đường chính (p1,p2) lên/xuống theo đúng delta chuột,
+        // đường song song đứng yên tại vị trí cũ — cũng chỉnh độ rộng kênh nhưng từ phía đường chính.
+        const timeDelta = tp.time - dragStartTP.time, priceDelta = tp.price - dragStartTP.price;
+        dragDrawing.points[0] = { time: dragOriginalPoints[0].time + timeDelta, price: dragOriginalPoints[0].price + priceDelta };
+        dragDrawing.points[1] = { time: dragOriginalPoints[1].time + timeDelta, price: dragOriginalPoints[1].price + priceDelta };
+      }
+    } else if (dragPointIndex >= 0) {
       dragDrawing.points[dragPointIndex] = snapPoint(tp.time, tp.price);
     } else {
       const timeDelta = tp.time - dragStartTP.time, priceDelta = tp.price - dragStartTP.price;
@@ -4178,5 +4289,381 @@
     fab.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAI(); }
     });
+  })();
+
+  // ===================================================================================
+  // SECTION: BẢN ĐỒ KINH TẾ TOÀN CẦU — dữ liệu thật lấy trực tiếp từ World Bank (WDI).
+  // Hình học bản đồ chỉ dựng 1 lần (đường biên giới các nước); khi đổi chỉ số chỉ tô lại
+  // màu (fill) theo dữ liệu mới đã cache sẵn trong bộ nhớ — mượt, không phải vẽ lại từ đầu.
+  // ===================================================================================
+  (function initEconMap() {
+    const svgEl = document.getElementById('econ-map-svg');
+    const wrapEl = document.getElementById('econ-map-wrap');
+    const statusEl = document.getElementById('econ-map-status');
+    const tabsEl = document.getElementById('econ-tabs');
+    const titleEl = document.getElementById('econ-title');
+    const tooltipEl = document.getElementById('econ-tooltip');
+    const legendBarEl = document.getElementById('econ-legend-bar');
+    const legendLabelsEl = document.getElementById('econ-legend-labels');
+    if (!svgEl || typeof d3 === 'undefined') return;
+
+    // Nguồn hình học: GeoJSON biên giới các nước, id = mã ISO3 (khớp trực tiếp với countryiso3code
+    // của World Bank, không cần bảng tra mã số ISO trung gian).
+    const GEO_URL = 'https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json';
+
+    // Bảng màu đơn sắc (tối -> sáng) đồng bộ tông vàng/gold sẵn có của giao diện.
+    // Thang màu nhiệt liên tục kiểu TradingView: xanh (tốt) -> vàng -> đỏ (xấu).
+    // Hướng "tốt/xấu" phụ thuộc từng chỉ số (goodDirection trong ECON_INDICATORS).
+    const GRADIENT_LOW_TO_HIGH = ['#14cc8a', '#8dd66a', '#f0c419', '#ff8a3d', '#ff4757'];
+    const NO_DATA_COLOR = '#232938';
+
+    const ECON_INDICATORS = {
+      inflation: { code: 'FP.CPI.TOTL.ZG', title: 'Bản đồ lạm phát toàn cầu', tab: 'Lạm phát', unit: '%', breaks: [0, 3, 7, 12, 25], goodDirection: 'low' },
+      gdp: { code: 'NY.GDP.MKTP.KD.ZG', title: 'Bản đồ tăng trưởng GDP toàn cầu', tab: 'Tăng trưởng GDP', unit: '%', breaks: [-2, 0, 2, 4, 6], goodDirection: 'high' },
+      unemployment: { code: 'SL.UEM.TOTL.ZS', title: 'Bản đồ thất nghiệp toàn cầu', tab: 'Thất nghiệp', unit: '%', breaks: [4, 7, 10, 15, 20], goodDirection: 'low' }
+    };
+
+    const state = { current: 'inflation', cache: {}, countries: null, ready: false };
+
+    // --- Trạng thái quả cầu xoay được ---
+    let projection, path, oceanSel, graticuleSel, flagLayerSel;
+    let flagByIso3 = {};
+    let flagFeatures = [];
+    let autoRotateTimer = null;
+    let autoRotateResumeT = null;
+    const FLAG_W = 15, FLAG_H = 11;
+    const AUTO_ROTATE_SPEED = 0.025; // độ / khung hình (~60fps -> khoảng 5 phút / vòng)
+    const VISIBLE_THRESHOLD = 1.52; // rad (~87°) — chỉ vẽ cờ cho nước đang quay ra phía trước
+
+    function setStatus(msg, isError) {
+      if (!statusEl) return;
+      if (!msg) { statusEl.classList.add('hide'); return; }
+      statusEl.textContent = msg;
+      statusEl.classList.remove('hide');
+      statusEl.classList.toggle('error', !!isError);
+    }
+
+    function gradientColorsFor(cfg) {
+      return cfg.goodDirection === 'high' ? [...GRADIENT_LOW_TO_HIGH].reverse() : GRADIENT_LOW_TO_HIGH;
+    }
+
+    function scaleFor(cfg) {
+      if (!cfg._scale) {
+        cfg._scale = d3.scaleLinear().domain(cfg.breaks).range(gradientColorsFor(cfg)).clamp(true);
+      }
+      return cfg._scale;
+    }
+
+    function colorFor(value, cfg) {
+      if (value === undefined || value === null || isNaN(value)) return NO_DATA_COLOR;
+      return scaleFor(cfg)(value);
+    }
+
+    function percentOnScale(value, cfg) {
+      const min = cfg.breaks[0], max = cfg.breaks[cfg.breaks.length - 1];
+      return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+    }
+
+    function renderLegend(cfg) {
+      if (!legendBarEl || !legendLabelsEl) return;
+      const colors = gradientColorsFor(cfg);
+      const min = cfg.breaks[0], max = cfg.breaks[cfg.breaks.length - 1];
+      const stops = cfg.breaks.map((b, i) => colors[i] + ' ' + (((b - min) / (max - min)) * 100).toFixed(2) + '%').join(', ');
+      legendBarEl.style.background = 'linear-gradient(to right, ' + stops + ')';
+      legendBarEl.innerHTML = '<div class="econ-legend-marker" id="econ-legend-marker"></div>';
+      legendLabelsEl.innerHTML = cfg.breaks.map(b => '<span>' + b + cfg.unit + '</span>').join('');
+      resetLegendHover();
+    }
+
+    // Cập nhật dòng "quốc gia đang hover" bên dưới legend + di chuyển vạch đánh dấu trên thang màu.
+    function updateLegendHover(cfg, name, rec) {
+      const dotEl = document.getElementById('econ-legend-hover-dot');
+      const textEl = document.getElementById('econ-legend-hover-text');
+      const markerEl = document.getElementById('econ-legend-marker');
+      if (!dotEl || !textEl) return;
+      if (rec) {
+        dotEl.style.background = colorFor(rec.value, cfg);
+        textEl.innerHTML = '<span class="econ-legend-hover-name">' + name + '</span> · '
+          + '<span class="econ-legend-hover-val">' + rec.value.toFixed(1) + cfg.unit + '</span> '
+          + '<span class="econ-legend-hover-year">(' + rec.year + ')</span>';
+        if (markerEl) { markerEl.style.left = percentOnScale(rec.value, cfg) + '%'; markerEl.classList.add('show'); }
+      } else {
+        dotEl.style.background = NO_DATA_COLOR;
+        textEl.innerHTML = '<span class="econ-legend-hover-name">' + name + '</span> · Không có dữ liệu';
+        if (markerEl) markerEl.classList.remove('show');
+      }
+    }
+
+    function resetLegendHover() {
+      const dotEl = document.getElementById('econ-legend-hover-dot');
+      const textEl = document.getElementById('econ-legend-hover-text');
+      const markerEl = document.getElementById('econ-legend-marker');
+      if (dotEl) dotEl.style.background = 'var(--border)';
+      if (textEl) textEl.textContent = 'Di chuột vào bản đồ để xem chi tiết từng quốc gia';
+      if (markerEl) markerEl.classList.remove('show');
+    }
+
+    async function fetchIndicator(key) {
+      if (state.cache[key]) return state.cache[key];
+      const cfg = ECON_INDICATORS[key];
+      const url = 'https://api.worldbank.org/v2/country/all/indicator/' + cfg.code + '?format=json&per_page=300&mrnev=1';
+      let json;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('WB API lỗi ' + res.status);
+        json = await res.json();
+      } catch (directErr) {
+        // Nguồn trực tiếp bị chặn CORS (thường gặp khi mở file HTML trực tiếp, origin 'null')
+        // -> thử lại qua CORS-proxy allorigins.
+        const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+        const res2 = await fetch(proxyUrl);
+        if (!res2.ok) throw new Error('WB API lỗi ' + res2.status);
+        json = await res2.json();
+      }
+      const map = {};
+      const rows = (json && json[1]) || [];
+      rows.forEach(row => {
+        if (row && row.value !== null && row.value !== undefined && row.countryiso3code) {
+          map[row.countryiso3code] = { value: +row.value, year: row.date };
+        }
+      });
+      state.cache[key] = map;
+      return map;
+    }
+
+    function showTooltip(event, feature, dataMap, cfg) {
+      const rec = dataMap[feature.id];
+      const name = (feature.properties && feature.properties.name) || feature.id;
+      let html = '<div class="econ-tt-name"></div><div class="econ-tt-val"></div>';
+      tooltipEl.innerHTML = html;
+      tooltipEl.querySelector('.econ-tt-name').textContent = name;
+      const valEl = tooltipEl.querySelector('.econ-tt-val');
+      if (rec) {
+        valEl.textContent = rec.value.toFixed(1) + cfg.unit + '  ';
+        const yearSpan = document.createElement('span');
+        yearSpan.className = 'econ-tt-year';
+        yearSpan.textContent = '(' + rec.year + ')';
+        valEl.appendChild(yearSpan);
+      } else {
+        valEl.classList.add('econ-tt-nodata');
+        valEl.textContent = 'Không có dữ liệu';
+      }
+      let clientX = event.clientX, clientY = event.clientY;
+      if (event.touches && event.touches.length) { clientX = event.touches[0].clientX; clientY = event.touches[0].clientY; }
+      const tw = tooltipEl.offsetWidth || 140;
+      tooltipEl.style.left = Math.min(clientX + 14, window.innerWidth - tw - 8) + 'px';
+      tooltipEl.style.top = Math.max(clientY - 12, 8) + 'px';
+      tooltipEl.classList.add('show');
+      clearTimeout(state.tooltipTimer);
+      if (event.type === 'touchstart') { state.tooltipTimer = setTimeout(hideTooltip, 2500); }
+    }
+    function hideTooltip() { tooltipEl.classList.remove('show'); }
+
+    async function switchIndicator(key) {
+      const cfg = ECON_INDICATORS[key];
+      if (!cfg || !state.ready) return;
+      state.current = key;
+      titleEl.textContent = cfg.title;
+      renderLegend(cfg);
+      setStatus('Đang tải dữ liệu ' + cfg.tab.toLowerCase() + '…');
+      try {
+        const dataMap = await fetchIndicator(key);
+        state.countries
+          .transition().duration(350)
+          .attr('fill', d => colorFor(dataMap[d.id] ? dataMap[d.id].value : null, cfg));
+        state.countries
+          .on('mousemove touchstart', (event, d) => {
+            const name = (d.properties && d.properties.name) || d.id;
+            showTooltip(event, d, dataMap, cfg);
+            updateLegendHover(cfg, name, dataMap[d.id]);
+          })
+          .on('mouseleave', () => { hideTooltip(); resetLegendHover(); });
+        setStatus('');
+      } catch (e) {
+        setStatus('Không tải được dữ liệu từ World Bank. Vui lòng thử lại sau.', true);
+      }
+    }
+
+    if (tabsEl) {
+      tabsEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-econ]');
+        if (!btn) return;
+        tabsEl.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        switchIndicator(btn.getAttribute('data-econ'));
+      });
+    }
+
+    // Vẽ lại tất cả path (đại dương, lưới kinh vĩ tuyến, quốc gia) + cờ theo góc xoay hiện tại.
+    function redraw() {
+      if (!path) return;
+      if (oceanSel) oceanSel.attr('d', path);
+      if (graticuleSel) graticuleSel.attr('d', path);
+      if (state.countries) state.countries.attr('d', path);
+      updateFlags();
+    }
+
+    // Một nước được coi là "quay ra phía trước" nếu tâm địa lý của nó cách tâm khung nhìn < 90°.
+    function isFrontFacing(feature) {
+      const c = feature._centroid || (feature._centroid = d3.geoCentroid(feature));
+      const r = projection.rotate();
+      const center = [-r[0], -r[1]];
+      return d3.geoDistance(c, center) < VISIBLE_THRESHOLD;
+    }
+
+    function updateFlags() {
+      if (!flagLayerSel || !flagFeatures.length) return;
+      const visible = flagFeatures.filter(isFrontFacing);
+      flagLayerSel.selectAll('image.econ-flag')
+        .data(visible, f => f.id)
+        .join(
+          enter => enter.append('image')
+            .attr('class', 'econ-flag')
+            .attr('href', f => flagByIso3[f.id])
+            .attr('width', FLAG_W)
+            .attr('height', FLAG_H)
+            .style('opacity', 0)
+            .call(sel => sel.transition().duration(150).style('opacity', 1)),
+          update => update,
+          exit => exit.remove()
+        )
+        .attr('x', f => path.centroid(f)[0] - FLAG_W / 2)
+        .attr('y', f => path.centroid(f)[1] - FLAG_H / 2);
+    }
+
+    function startAutoRotate() {
+      if (autoRotateTimer) return;
+      autoRotateTimer = d3.timer(() => {
+        const r = projection.rotate();
+        projection.rotate([r[0] + AUTO_ROTATE_SPEED, r[1], r[2]]);
+        redraw();
+      });
+    }
+    function stopAutoRotate() {
+      if (autoRotateTimer) { autoRotateTimer.stop(); autoRotateTimer = null; }
+    }
+    function scheduleAutoRotateResume() {
+      clearTimeout(autoRotateResumeT);
+      autoRotateResumeT = setTimeout(startAutoRotate, 2200);
+    }
+
+    // Lấy URL cờ (PNG) theo mã ISO3 từ REST Countries, khớp thẳng với id (ISO3) của GeoJSON,
+    // sau đó chỉ hiển thị cờ của những nước đang quay ra phía trước quả cầu.
+    async function loadCountryFlags(world) {
+      const FLAG_API = 'https://restcountries.com/v3.1/all?fields=cca3,flags';
+      let list;
+      try {
+        const res = await fetch(FLAG_API);
+        if (!res.ok) throw new Error('flags api ' + res.status);
+        list = await res.json();
+      } catch (directErr) {
+        try {
+          const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(FLAG_API);
+          const res2 = await fetch(proxyUrl);
+          if (!res2.ok) throw new Error('flags api lỗi ' + res2.status);
+          list = await res2.json();
+        } catch (proxyErr) {
+          console.warn('Không tải được cờ quốc gia:', proxyErr);
+          return;
+        }
+      }
+
+      (list || []).forEach(c => {
+        if (c && c.cca3 && c.flags && (c.flags.png || c.flags.svg)) {
+          flagByIso3[c.cca3] = c.flags.png || c.flags.svg;
+        }
+      });
+      flagFeatures = world.features.filter(f => !!flagByIso3[f.id]);
+      flagFeatures.forEach(f => { f._centroid = d3.geoCentroid(f); });
+      updateFlags();
+    }
+
+    (async function boot() {
+      setStatus('Đang tải quả cầu…');
+      try {
+        const world = await d3.json(GEO_URL);
+        const SIZE = 620, PAD = 26;
+        projection = d3.geoOrthographic()
+          .rotate([-20, -12, 0])
+          .clipAngle(90)
+          .fitExtent([[PAD, PAD], [SIZE - PAD, SIZE - PAD]], { type: 'Sphere' });
+        path = d3.geoPath(projection);
+
+        const svg = d3.select(svgEl);
+        svg.selectAll('*').remove();
+
+        const cx = projection.translate()[0], cy = projection.translate()[1];
+        const r = projection.scale();
+
+        const defs = svg.append('defs');
+
+        // Gradient đại dương: mô phỏng ánh sáng chiếu từ góc trên-trái, tối dần ra rìa cho cảm giác hình cầu 3D.
+        const oceanGrad = defs.append('radialGradient').attr('id', 'econ-ocean-grad').attr('cx', '32%').attr('cy', '28%').attr('r', '80%');
+        oceanGrad.append('stop').attr('offset', '0%').attr('stop-color', '#5fa8e8');
+        oceanGrad.append('stop').attr('offset', '35%').attr('stop-color', '#2f74c4');
+        oceanGrad.append('stop').attr('offset', '70%').attr('stop-color', '#164a8a');
+        oceanGrad.append('stop').attr('offset', '100%').attr('stop-color', '#0a2647');
+
+        // Vầng khí quyển phát sáng quanh rìa quả cầu.
+        const atmoGrad = defs.append('radialGradient').attr('id', 'econ-atmo-grad').attr('cx', '50%').attr('cy', '50%').attr('r', '50%');
+        atmoGrad.append('stop').attr('offset', '82%').attr('stop-color', '#5fb4ff').attr('stop-opacity', 0);
+        atmoGrad.append('stop').attr('offset', '94%').attr('stop-color', '#5fb4ff').attr('stop-opacity', 0.45);
+        atmoGrad.append('stop').attr('offset', '100%').attr('stop-color', '#5fb4ff').attr('stop-opacity', 0);
+
+        // Đổ bóng nhẹ dưới quả cầu để có cảm giác đang lơ lửng, không bị dính phẳng vào nền.
+        const shadowFilter = defs.append('filter').attr('id', 'econ-globe-shadow').attr('x', '-60%').attr('y', '-60%').attr('width', '220%').attr('height', '220%');
+        shadowFilter.append('feDropShadow').attr('dx', 0).attr('dy', 10).attr('stdDeviation', 14).attr('flood-color', '#000').attr('flood-opacity', 0.5);
+
+        svg.append('circle')
+          .attr('class', 'econ-globe-atmosphere')
+          .attr('cx', cx).attr('cy', cy).attr('r', r * 1.05)
+          .style('fill', 'url(#econ-atmo-grad)');
+
+        const bodyGroup = svg.append('g').attr('class', 'econ-globe-body').style('filter', 'url(#econ-globe-shadow)');
+
+        oceanSel = bodyGroup.append('path')
+          .datum({ type: 'Sphere' })
+          .attr('class', 'econ-globe-ocean')
+          .attr('d', path)
+          .style('fill', 'url(#econ-ocean-grad)');
+
+        graticuleSel = bodyGroup.append('path')
+          .datum(d3.geoGraticule10())
+          .attr('class', 'econ-globe-graticule')
+          .attr('d', path);
+
+        const g = bodyGroup.append('g');
+        state.countries = g.selectAll('path.econ-country')
+          .data(world.features)
+          .join('path')
+          .attr('class', 'econ-country')
+          .attr('d', path)
+          .on('mouseleave', () => { hideTooltip(); resetLegendHover(); });
+
+        flagLayerSel = svg.append('g').attr('class', 'econ-flag-layer');
+
+        // Kéo chuột/chạm để xoay quả cầu (giống lăn địa cầu)
+        const dragBehavior = d3.drag()
+          .on('start', () => { stopAutoRotate(); svgEl.classList.add('grabbing'); })
+          .on('drag', (event) => {
+            const r = projection.rotate();
+            const k = 230 / (projection.scale() || 1);
+            const nextLambda = r[0] + event.dx * k;
+            const nextPhi = Math.max(-90, Math.min(90, r[1] - event.dy * k));
+            projection.rotate([nextLambda, nextPhi, r[2]]);
+            redraw();
+          })
+          .on('end', () => { svgEl.classList.remove('grabbing'); scheduleAutoRotateResume(); });
+        svg.style('touch-action', 'none').call(dragBehavior);
+        svg.on('mouseenter', () => stopAutoRotate()).on('mouseleave', () => scheduleAutoRotateResume());
+
+        state.ready = true;
+        await switchIndicator(state.current);
+        startAutoRotate();
+        loadCountryFlags(world);
+      } catch (e) {
+        setStatus('Không tải được quả cầu. Kiểm tra kết nối mạng và thử lại.', true);
+      }
+    })();
   })();
   updateChart();
