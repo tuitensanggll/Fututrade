@@ -498,6 +498,7 @@
   </div>
 
   <div class="econ-section" id="econ-section">
+    <canvas class="econ-space-bg" id="econ-space-bg" aria-hidden="true"></canvas>
     <div class="econ-header">
       <div>
         <div class="econ-eyebrow">NỀN KINH TẾ</div>
@@ -513,7 +514,14 @@
     <div class="econ-map-wrap" id="econ-map-wrap">
       <div class="econ-map-status" id="econ-map-status">Đang tải dữ liệu…</div>
       <canvas id="econ-map-canvas" class="econ-map-svg"></canvas>
-      <div class="econ-map-hint">🖱️ Kéo để xoay quả cầu</div>
+      <div class="econ-zoom-controls" id="econ-zoom-controls">
+        <button type="button" id="econ-zoom-in" title="Phóng to" aria-label="Phóng to">+</button>
+        <button type="button" id="econ-zoom-out" title="Thu nhỏ" aria-label="Thu nhỏ">−</button>
+        <button type="button" id="econ-zoom-reset" title="Về mặc định" aria-label="Về mặc định">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M21 12a9 9 0 11-3.5-7.1"/><path d="M21 3v6h-6"/></svg>
+        </button>
+      </div>
+      <div class="econ-map-hint">🖱️ Kéo để xoay · Cuộn/chụm để phóng to-thu nhỏ</div>
     </div>
 
     <div class="econ-legend-wrap">
