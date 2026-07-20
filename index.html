@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FUTU TRADE  CRYPTO TERMINAL - ĐƯỢC PHÁT TRIỂN BỞI SINH VIÊN VÕ THANH SANG(UTH)</title>
 <script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
 <script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -510,7 +512,7 @@
 
     <div class="econ-map-wrap" id="econ-map-wrap">
       <div class="econ-map-status" id="econ-map-status">Đang tải dữ liệu…</div>
-      <svg id="econ-map-svg" class="econ-map-svg" viewBox="0 0 620 620" preserveAspectRatio="xMidYMid meet"></svg>
+      <canvas id="econ-map-canvas" class="econ-map-svg"></canvas>
       <div class="econ-map-hint">🖱️ Kéo để xoay quả cầu</div>
     </div>
 
