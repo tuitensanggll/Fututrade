@@ -505,19 +505,22 @@
   .econ-title{ font-family:'Sora', sans-serif; font-weight:700; font-size:18px; color:var(--text); }
   .econ-tabs{ flex-wrap:wrap; }
 
-  .econ-map-wrap{ position:relative; width:100%; max-width:620px; margin:0 auto; background:radial-gradient(900px 380px at 50% 15%, #0f1520, transparent 70%), var(--bg); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
-  .econ-map-svg{ display:block; width:100%; height:auto; cursor:grab; touch-action:none; }
+  .econ-map-wrap{ position:relative; width:100%; max-width:620px; aspect-ratio:1/1; margin:0 auto; background:radial-gradient(900px 380px at 50% 15%, #0f1520, transparent 70%), var(--bg); border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:0 24px 50px -20px #000a; }
+  .econ-map-svg{ display:block; width:100%; height:100%; aspect-ratio:1/1; cursor:grab; touch-action:none; }
   .econ-map-svg.grabbing{ cursor:grabbing; }
+  .econ-star-field{ pointer-events:none; }
   .econ-globe-atmosphere{ pointer-events:none; }
   .econ-globe-body{ pointer-events:auto; }
   .econ-globe-ocean{ stroke:#6fb4f0; stroke-width:0.75; stroke-opacity:0.5; }
   .econ-globe-graticule{ fill:none; stroke:#ffffff30; stroke-width:0.5; pointer-events:none; }
   .econ-map-hint{ position:absolute; left:12px; bottom:12px; font-family:'Inter', sans-serif; font-size:10.5px; color:var(--text-dim); background:#0a0d13cc; border:1px solid var(--border); padding:4px 9px; border-radius:20px; pointer-events:none; }
-  .econ-country{ stroke:#3a4256; stroke-width:0.5; fill:#232938; cursor:pointer; transition:fill .3s ease, stroke .15s ease, filter .15s ease; }
-  .econ-country:hover{ stroke:#e7eaf0; stroke-width:1; filter:brightness(1.18); }
-  .econ-flag-layer{ pointer-events:none; }
-  .econ-flag{ pointer-events:none; filter:drop-shadow(0 0 1.5px rgba(0,0,0,.9)) drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
-  .econ-map-status{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--text-dim); font-weight:600; background:var(--bg); z-index:2; transition:opacity .25s ease; }
+  .econ-country{ stroke-width:1.3; cursor:pointer; transition:fill .3s ease, stroke .3s ease, filter .15s ease; }
+  .econ-country:hover{ stroke-width:2; filter:brightness(1.3); }
+  .econ-border-layer{ pointer-events:none; }
+  .econ-border{ fill:none; stroke:#0b0e1899; stroke-width:0.6; }
+  .econ-island-layer{ pointer-events:none; }
+  .econ-island-dot{ filter:drop-shadow(0 0 1.5px #000a); }
+  .econ-map-status{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--text-dim); font-weight:600; background:var(--bg); z-index:2; transition:opacity .25s ease; pointer-events:none; }
   .econ-map-status.hide{ opacity:0; pointer-events:none; }
   .econ-map-status.error{ color:var(--down); }
 
@@ -539,6 +542,7 @@
   .econ-tt-val{ font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--gold); font-weight:700; margin-top:2px; }
   .econ-tt-val.econ-tt-nodata{ color:var(--text-dim); font-weight:500; }
   .econ-tt-year{ color:var(--text-dim); font-weight:500; }
+  .econ-flag{ height:12px; width:auto; vertical-align:-1.5px; margin-right:4px; border-radius:2px; box-shadow:0 0 0 1px rgba(255,255,255,.15); }
 
   @media (max-width:640px){
     .econ-section{ padding:16px 14px 18px; margin-top:12px; }
