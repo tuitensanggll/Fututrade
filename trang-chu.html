@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trang chủ — FUTU TRADE | Tổng quan Kinh tế & Thị trường Toàn cầu</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%90%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="trang-chu.css">
+<script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<!-- ================= MÀN HÌNH ĐĂNG NHẬP ================= -->
+<div id="auth-overlay" class="auth-overlay" style="display:none;">
+  <div class="auth-box">
+    <span class="auth-corner tl" aria-hidden="true"></span>
+    <span class="auth-corner tr" aria-hidden="true"></span>
+    <span class="auth-corner bl" aria-hidden="true"></span>
+    <span class="auth-corner br" aria-hidden="true"></span>
+
+    <div class="auth-eyebrow"><span class="auth-eyebrow-dot"></span>TRUY CẬP HỆ THỐNG</div>
+
+    <div class="auth-brand">FUTU TRADE</div>
+    <div class="auth-subtitle">Đăng nhập để vào Trang chủ dữ liệu thị trường</div>
+
+    <div class="auth-seal" aria-hidden="true"><span></span></div>
+
+    <button class="btn-auth btn-google" id="btn-google">
+      <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt=""></span>
+      <span class="btn-auth-label">Tiếp tục với Google</span>
+    </button>
+
+    <button class="btn-auth btn-facebook" id="btn-facebook">
+      <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt=""></span>
+      <span class="btn-auth-label">Tiếp tục với Facebook</span>
+    </button>
+
+    <div class="auth-or"><span>hoặc</span></div>
+
+    <button class="btn-auth btn-guest" id="btn-guest">
+      <span class="btn-auth-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </span>
+      <span class="btn-auth-label">Trải nghiệm với tư cách khách</span>
+    </button>
+
+    <div class="auth-footnote">KHÔNG LƯU MẬT KHẨU</div>
+  </div>
+</div>
+
+<div class="page-wrap">
+
+  <!-- ================= TOPBAR ================= -->
+  <header class="topbar-home">
+    <div class="brand">
+      <img src="logofututrade.png" class="brand-logo" alt="FUTU TRADE" onerror="this.style.display='none'">
+      <div class="brand-text">FUTU TRADE<span>TRUNG TÂM DỮ LIỆU THỊ TRƯỜNG TOÀN CẦU</span></div>
+    </div>
+    <nav class="home-nav">
+      <a href="trang-chu.html" class="nav-link active">Trang chủ</a>
+      <a href="index.html" class="nav-link">Terminal giao dịch</a>
+    </nav>
+
+    <div class="profile-wrap" id="profile-wrap" style="display:none;">
+      <button class="profile-btn" id="profile-btn" type="button">
+        <span class="profile-avatar" id="profile-avatar">?</span>
+        <span class="profile-meta">
+          <span class="profile-name" id="profile-name">Tài khoản</span>
+          <span class="profile-uid" id="profile-uid-mini">UID: ---------</span>
+        </span>
+        <span class="ico profile-chevron"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M6 9l6 6 6-6"/></svg></span>
+      </button>
+      <div class="profile-dropdown" id="profile-dropdown">
+        <div class="profile-dropdown-head">
+          <span class="profile-avatar large" id="profile-avatar-lg">?</span>
+          <div>
+            <div class="profile-dropdown-name" id="profile-dropdown-name">Tài khoản</div>
+            <div class="profile-dropdown-email" id="profile-dropdown-email">—</div>
+          </div>
+        </div>
+        <div class="profile-uid-row">
+          <span>UID</span>
+          <span class="profile-uid-value" id="profile-uid-full">---------</span>
+          <button class="profile-copy-btn" id="profile-copy-uid" type="button" title="Sao chép UID">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M4.5 15.5H4A1.5 1.5 0 012.5 14V4A1.5 1.5 0 014 2.5h10A1.5 1.5 0 0115.5 4v.5"/></svg>
+          </button>
+        </div>
+        <button class="profile-edit-btn" id="btn-edit-profile" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Chỉnh sửa hồ sơ
+        </button>
+        <div class="profile-link-account" id="profile-link-account" style="display:none;">
+          <div class="profile-link-note">Bạn đang dùng tài khoản khách. Liên kết để không mất dữ liệu:</div>
+          <button class="profile-link-btn profile-link-google" id="btn-link-google" type="button">
+            <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt=""></span>
+            Liên kết Google
+          </button>
+          <button class="profile-link-btn profile-link-facebook" id="btn-link-facebook" type="button">
+            <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt=""></span>
+            Liên kết Facebook
+          </button>
+        </div>
+        <div class="profile-divider"></div>
+        <button class="profile-logout-btn" id="btn-logout" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          Đăng xuất
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= HERO ================= -->
+  <section class="hero">
+    <div class="hero-left">
+      <div class="eyebrow"><span class="eyebrow-dot"></span>CẬP NHẬT TRỰC TIẾP</div>
+      <h1>Nhịp đập <span>Kinh tế &amp; Tài chính</span> Toàn cầu</h1>
+      <p class="hero-sub">Toàn cảnh nền kinh tế thế giới, xếp hạng quốc gia, xu hướng thị trường, tỷ giá ngoại tệ, tin tức nóng, tâm lý nhà đầu tư và bảng giá tiền điện tử — tất cả trong một màn hình.</p>
+      <div class="hero-clock">
+        <div class="clock-time" id="clock-time">--:--:--</div>
+        <div class="clock-date" id="clock-date">Đang tải giờ Việt Nam…</div>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="sessions-card">
+        <div class="sessions-title">Phiên giao dịch toàn cầu</div>
+        <div class="sessions-list" id="sessions-list">
+          <div class="session-row skeleton" style="height:46px"></div>
+          <div class="session-row skeleton" style="height:46px"></div>
+          <div class="session-row skeleton" style="height:46px"></div>
+          <div class="session-row skeleton" style="height:46px"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= QUICK STATS STRIP ================= -->
+  <section class="quickstats" id="quickstats">
+    <div class="qstat skeleton" style="height:74px"></div>
+    <div class="qstat skeleton" style="height:74px"></div>
+    <div class="qstat skeleton" style="height:74px"></div>
+    <div class="qstat skeleton" style="height:74px"></div>
+  </section>
+
+  <!-- ================= NỀN KINH TẾ TOÀN CẦU (y hệt Terminal: quả cầu Trái Đất + xếp hạng/xu hướng/tỷ giá) ================= -->
+  <div class="econ-row" id="econ-row">
+    <div class="econ-section" id="econ-section">
+      <div class="econ-space-bg" id="econ-space-bg" aria-hidden="true">
+        <div class="econ-space-photo">
+          <div class="econ-space-vignette"></div>
+        </div>
+        <div class="econ-space-twinkle"></div>
+        <div class="econ-shooting-star" id="econ-shooting-star"></div>
+      </div>
+      <div class="econ-content" id="econ-content">
+        <div class="econ-header">
+          <div>
+            <div class="econ-eyebrow">NỀN KINH TẾ</div>
+            <div class="econ-title" id="econ-title">Bản đồ lạm phát toàn cầu</div>
+          </div>
+          <div class="chips econ-tabs" id="econ-tabs">
+            <button class="chip active" data-econ="inflation" type="button">Lạm phát</button>
+            <button class="chip" data-econ="gdp" type="button">Tăng trưởng GDP</button>
+            <button class="chip" data-econ="unemployment" type="button">Thất nghiệp</button>
+          </div>
+        </div>
+
+        <div class="econ-body" id="econ-body">
+          <div class="econ-map-wrap" id="econ-map-wrap">
+            <div class="econ-map-status" id="econ-map-status">Đang tải dữ liệu…</div>
+            <canvas id="econ-map-canvas" class="econ-map-svg"></canvas>
+            <div class="econ-zoom-controls" id="econ-zoom-controls">
+              <button type="button" id="econ-zoom-in" title="Phóng to" aria-label="Phóng to">+</button>
+              <button type="button" id="econ-zoom-out" title="Thu nhỏ" aria-label="Thu nhỏ">−</button>
+              <button type="button" id="econ-zoom-reset" title="Về mặc định" aria-label="Về mặc định">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M21 12a9 9 0 11-3.5-7.1"/><path d="M21 3v6h-6"/></svg>
+              </button>
+            </div>
+            <div class="econ-map-hint">🖱️ Kéo để xoay · Cuộn/chụm để phóng to-thu nhỏ</div>
+          </div>
+
+          <div class="econ-side">
+            <div class="econ-legend-wrap">
+              <div class="econ-legend-scale">
+                <div class="econ-legend-bar" id="econ-legend-bar"></div>
+                <div class="econ-legend-labels" id="econ-legend-labels"></div>
+              </div>
+              <div class="econ-legend-hover" id="econ-legend-hover">
+                <span class="econ-legend-hover-dot" id="econ-legend-hover-dot"></span>
+                <span class="econ-legend-hover-text" id="econ-legend-hover-text">Di chuột vào bản đồ để xem chi tiết từng quốc gia</span>
+              </div>
+            </div>
+            <div class="econ-source">Nguồn dữ liệu thật: World Bank — World Development Indicators (mỗi quốc gia hiển thị theo năm gần nhất có số liệu công bố, xem chi tiết khi di chuột/chạm vào bản đồ).</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="econ-extra" id="econ-extra">
+      <div class="econ-mini-card" id="econ-rank-card">
+        <div class="econ-mini-head">
+          <span class="econ-mini-title" id="econ-rank-title">🏆 Xếp hạng quốc gia</span>
+          <span class="econ-mini-sub" id="econ-rank-sub"></span>
+        </div>
+        <div class="econ-mini-desc" id="econ-rank-desc"></div>
+        <div class="econ-rank-list" id="econ-rank-list"><div class="econ-mini-empty">Đang tải…</div></div>
+      </div>
+
+      <div class="econ-mini-card" id="econ-trend-card">
+        <div class="econ-mini-head">
+          <span class="econ-mini-title" id="econ-trend-title">📈 Xu hướng toàn cầu</span>
+          <span class="econ-mini-sub" id="econ-trend-sub"></span>
+        </div>
+        <div class="econ-mini-desc" id="econ-trend-desc"></div>
+        <div class="econ-trend-chart-wrap"><canvas id="econ-trend-canvas"></canvas></div>
+      </div>
+
+      <div class="econ-mini-card" id="econ-ticker-card">
+        <div class="econ-mini-head">
+          <span class="econ-mini-title">💱 Tỷ giá ngoại tệ</span>
+          <span class="econ-mini-sub" id="econ-ticker-sub"></span>
+        </div>
+        <div class="econ-ticker-list" id="econ-ticker-list"><div class="econ-mini-empty">Đang tải…</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="econ-tooltip" id="econ-tooltip"></div>
+
+  <!-- ================= TÂM LÝ THỊ TRƯỜNG & TIN TỨC (bố cục + ngoại hình y hệt Terminal) ================= -->
+  <main class="sentiment-row">
+
+    <!-- TÂM LÝ THỊ TRƯỜNG — copy y hệt cấu trúc/class của #fng-card trong Terminal -->
+    <div class="sentiment-card" id="fng-card">
+      <div class="sentiment-head">
+        <div class="sentiment-title">Tâm lý thị trường chung</div>
+        <div class="sentiment-chevron"><span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></div>
+      </div>
+      <div class="sentiment-gauge" id="fng-gauge"></div>
+    </div>
+
+    <!-- TIN TỨC NÓNG — copy y hệt cấu trúc/class của #news-card trong Terminal -->
+    <div class="news-card" id="news-card">
+      <div class="sentiment-head">
+        <div class="sentiment-title">Tin tức nóng <span id="news-live-badge"></span></div>
+        <div class="news-updated" id="news-updated"></div>
+      </div>
+      <div class="news-list" id="news-list"><div class="news-empty">Đang tải tin tức...</div></div>
+    </div>
+
+  </main>
+
+  <!-- ================= BẢNG GIÁ COIN ================= -->
+  <section class="panel panel-coins">
+    <div class="panel-head">
+      <h2><span class="panel-icon">🪙</span>Bảng giá Coin</h2>
+      <div class="coins-controls">
+        <input id="coin-search" placeholder="Tìm coin theo tên hoặc mã... (VD: BTC, Solana)" autocomplete="off">
+        <span class="live-pill" id="ws-status"><span class="live-dot"></span>LIVE</span>
+        <span class="coins-updated" id="coins-updated">—</span>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table class="coins-table">
+        <thead>
+          <tr>
+            <th class="th-rank">#</th>
+            <th class="th-name">Tên</th>
+            <th class="num sortable" data-sort="price">Giá</th>
+            <th class="num sortable" data-sort="h1">1h %</th>
+            <th class="num sortable" data-sort="h24">24h %</th>
+            <th class="num sortable" data-sort="d7">7 ngày %</th>
+            <th class="num sortable" data-sort="cap">Vốn hóa</th>
+            <th class="num sortable" data-sort="vol">KL 24h</th>
+            <th class="th-spark">7 ngày</th>
+          </tr>
+        </thead>
+        <tbody id="coins-tbody">
+          <tr><td colspan="9"><div class="skeleton" style="height:360px;border-radius:10px"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="footer-home">
+    FUTU TRADE — Trang chủ dữ liệu thị trường toàn cầu · Được phát triển bởi sinh viên Võ Thanh Sang (UTH)<br>
+    Dữ liệu tổng hợp từ CoinGecko, World Bank, Alternative.me, CryptoCompare &amp; ExchangeRate API. Chỉ mang tính chất tham khảo, không phải lời khuyên đầu tư.
+  </footer>
+
+</div>
+
+<!-- ================= MODAL CHỈNH SỬA HỒ SƠ ================= -->
+<div class="modal-overlay" id="edit-profile-modal">
+  <div class="modal-box" style="max-width:380px;">
+    <div class="modal-title">
+      Chỉnh sửa hồ sơ
+      <button class="close-btn" id="close-edit-profile-modal" type="button">&times;</button>
+    </div>
+
+    <div class="avatar-upload-wrap">
+      <div class="avatar-upload-frame" id="avatar-upload-frame">
+        <span class="profile-avatar" id="edit-avatar-preview">?</span>
+        <div class="avatar-hover-layer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3.2L8.7 5.8h6.6L16.8 8H20a1 1 0 011 1v9.5a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.2" r="3.6"/></svg>
+        </div>
+      </div>
+      <button class="avatar-upload-btn" id="btn-choose-avatar" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3.2L8.7 5.8h6.6L16.8 8H20a1 1 0 011 1v9.5a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.2" r="3.6"/></svg>
+        Đổi ảnh đại diện
+      </button>
+      <div class="avatar-upload-hint">JPG hoặc PNG, tối đa 3MB</div>
+      <input type="file" id="avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;">
+    </div>
+
+    <div class="setting-group">
+      <label>Tên hiển thị</label>
+      <input type="text" id="edit-display-name" maxlength="30" placeholder="Nhập tên của bạn" style="font-family:'Inter', sans-serif;">
+      <div class="edit-name-counter" id="edit-name-counter">0/30</div>
+    </div>
+
+    <button class="btn-save full" id="btn-save-profile" type="button">Lưu thay đổi</button>
+    <div class="edit-profile-status" id="edit-profile-status"></div>
+  </div>
+</div>
+
+<script src="trang-chu.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  signInAnonymously,
+  linkWithPopup,
+  linkWithRedirect,
+  signOut,
+  updateProfile
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import {
+  getDatabase,
+  ref as dbRef,
+  set as dbSet,
+  get as dbGet
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+// Thông tin Firebase Console — dùng chung với Terminal (index.html) để tài khoản
+// đăng nhập ở đâu cũng có hiệu lực ở trang còn lại.
+const firebaseConfig = {
+  apiKey: "AIzaSyAsreiWebSWQUh76EaPJIz5SZ1YDzCrMM0",
+  authDomain: "futu-quanly.firebaseapp.com",
+  databaseURL: "https://futu-quanly-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "futu-quanly",
+  storageBucket: "futu-quanly.firebasestorage.app",
+  messagingSenderId: "572473761748",
+  appId: "1:572473761748:web:da6f2674b06bd651e8c041"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const rtdb = getDatabase(app);
+
+// Phát hiện mobile / trình duyệt trong app, dùng redirect thay vì popup để tránh lỗi.
+function shouldUseRedirect() {
+  const ua = navigator.userAgent || '';
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+  const isInAppBrowser = /FBAN|FBAV|Instagram|Line|Zalo|TikTok|Threads|MicroMessenger/i.test(ua);
+  return isMobile || isInAppBrowser;
+}
+
+getRedirectResult(auth).catch(err => {
+  if (err && err.code && err.code !== 'auth/no-auth-event') {
+    alert("Lỗi đăng nhập: " + err.message);
+  }
+});
+
+const authOverlay = document.getElementById('auth-overlay');
+
+// Sinh mã UID hiển thị (9 chữ số) ổn định từ uid thật của Firebase.
+function shortUidFrom(uid) {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = (hash * 31 + uid.charCodeAt(i)) >>> 0;
+  }
+  return String(100000000 + (hash % 900000000));
+}
+
+const profileWrap = document.getElementById('profile-wrap');
+const profileBtn = document.getElementById('profile-btn');
+const profileAvatar = document.getElementById('profile-avatar');
+const profileAvatarLg = document.getElementById('profile-avatar-lg');
+const profileName = document.getElementById('profile-name');
+const profileUidMini = document.getElementById('profile-uid-mini');
+const profileDropdownName = document.getElementById('profile-dropdown-name');
+const profileDropdownEmail = document.getElementById('profile-dropdown-email');
+const profileUidFull = document.getElementById('profile-uid-full');
+const copyUidBtn = document.getElementById('profile-copy-uid');
+const logoutBtn = document.getElementById('btn-logout');
+const linkAccountBox = document.getElementById('profile-link-account');
+const linkGoogleBtn = document.getElementById('btn-link-google');
+const linkFacebookBtn = document.getElementById('btn-link-facebook');
+
+let cachedAvatarBase64 = null;
+
+const ADMIN_ALLOWED_EMAILS = ['tuitensang07@gmail.com'];
+
+function stripVnDiacritics(str) {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd');
+}
+const ADMIN_CLAIM_KEYWORDS = [
+  'admin', 'administrator', 'quan tri', 'ban quan tri', 'quan tri vien',
+  'ceo', 'founder', 'nguoi sang lap', 'chu so huu', 'chu san',
+  'doi ngu futu', 'nhan vien futu', 'nhan vien chinh thuc',
+  'support futu', 'ho tro futu', 'cham soc khach hang futu', 'staff futu',
+  'moderator', 'mod futu', 'official futu', 'futu official', 'futu trade official',
+  'dai dien futu', 'quan ly futu', 'giam doc futu'
+];
+function isAdminClaimName(rawName) {
+  if (!rawName) return false;
+  const norm = stripVnDiacritics(rawName.toLowerCase());
+  return ADMIN_CLAIM_KEYWORDS.some(k => norm.includes(k));
+}
+function isEmailAdminAllowed(email) {
+  return !!email && ADMIN_ALLOWED_EMAILS.includes(email.toLowerCase());
+}
+
+function renderProfile(user) {
+  const isGuest = user.isAnonymous;
+  let displayName = isGuest ? 'Khách' : (user.displayName || (user.email ? user.email.split('@')[0] : 'Người dùng'));
+  if (!isGuest && isAdminClaimName(displayName) && !isEmailAdminAllowed(user.email)) {
+    displayName = user.email ? user.email.split('@')[0] : 'Người dùng';
+  }
+  const initial = displayName.trim().charAt(0).toUpperCase() || 'U';
+  const uidShort = shortUidFrom(user.uid);
+  const avatarSrc = cachedAvatarBase64 || user.photoURL;
+
+  profileName.textContent = displayName;
+  profileDropdownName.textContent = displayName;
+  profileDropdownEmail.textContent = isGuest ? 'Tài khoản khách (chưa liên kết)' : (user.email || user.phoneNumber || 'Đã xác thực');
+  profileUidMini.textContent = 'UID: ' + uidShort;
+  profileUidFull.textContent = uidShort;
+
+  [profileAvatar, profileAvatarLg].forEach(el => {
+    if (!el) return;
+    if (avatarSrc) {
+      el.innerHTML = `<img src="${avatarSrc}" alt="avatar">`;
+    } else {
+      el.textContent = initial;
+    }
+  });
+
+  if (linkAccountBox) linkAccountBox.style.display = isGuest ? 'block' : 'none';
+
+  profileWrap.style.display = 'block';
+}
+
+async function loadAvatarThenRender(user) {
+  try {
+    const snap = await dbGet(dbRef(rtdb, 'users/' + user.uid + '/avatarBase64'));
+    cachedAvatarBase64 = snap.exists() ? snap.val() : null;
+  } catch (e) {
+    cachedAvatarBase64 = null;
+  }
+  renderProfile(user);
+}
+
+function linkGuestWith(provider, providerLabel) {
+  if (!auth.currentUser || !auth.currentUser.isAnonymous) return;
+  const run = shouldUseRedirect()
+    ? linkWithRedirect(auth.currentUser, provider)
+    : linkWithPopup(auth.currentUser, provider);
+
+  run.catch(err => {
+    if (err && err.code === 'auth/credential-already-in-use') {
+      alert('Tài khoản ' + providerLabel + ' này đã được dùng cho một tài khoản khác. Vui lòng đăng xuất và đăng nhập trực tiếp bằng ' + providerLabel + ' để tiếp tục với tài khoản đó.');
+    } else if (err && err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
+      alert('Lỗi liên kết ' + providerLabel + ': ' + err.message);
+    }
+  });
+}
+
+// 1. Kiểm tra trạng thái đăng nhập tự động — trang chủ là nơi đăng nhập đầu tiên,
+//    nên chưa đăng nhập sẽ hiện màn hình khoá ngay tại đây.
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    authOverlay.style.display = 'none';
+    document.documentElement.classList.remove('auth-locked');
+    renderProfile(user);
+    loadAvatarThenRender(user);
+  } else {
+    authOverlay.style.display = 'flex';
+    document.documentElement.classList.add('auth-locked');
+    profileWrap.style.display = 'none';
+    profileWrap.classList.remove('open');
+  }
+});
+
+// 2. Đăng nhập Google
+document.getElementById('btn-google').addEventListener('click', () => {
+  const provider = new GoogleAuthProvider();
+  if (shouldUseRedirect()) {
+    signInWithRedirect(auth, provider).catch(err => alert("Lỗi đăng nhập Google: " + err.message));
+  } else {
+    signInWithPopup(auth, provider).catch(err => alert("Lỗi đăng nhập Google: " + err.message));
+  }
+});
+
+// 3. Đăng nhập Facebook
+document.getElementById('btn-facebook').addEventListener('click', () => {
+  const provider = new FacebookAuthProvider();
+  if (shouldUseRedirect()) {
+    signInWithRedirect(auth, provider).catch(err => alert("Lỗi đăng nhập Facebook: " + err.message));
+  } else {
+    signInWithPopup(auth, provider).catch(err => alert("Lỗi đăng nhập Facebook: " + err.message));
+  }
+});
+
+// 3b. Đăng nhập với tư cách khách
+document.getElementById('btn-guest').addEventListener('click', () => {
+  signInAnonymously(auth).catch(err => alert("Lỗi vào với tư cách khách: " + err.message));
+});
+
+// 3c. Liên kết tài khoản khách với Google / Facebook
+linkGoogleBtn.addEventListener('click', () => {
+  linkGuestWith(new GoogleAuthProvider(), 'Google');
+});
+linkFacebookBtn.addEventListener('click', () => {
+  linkGuestWith(new FacebookAuthProvider(), 'Facebook');
+});
+
+// 4. Mở / đóng dropdown profile
+profileBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  profileWrap.classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  if (!profileWrap.contains(e.target)) profileWrap.classList.remove('open');
+});
+
+// 5. Sao chép UID
+copyUidBtn.addEventListener('click', () => {
+  navigator.clipboard.writeText(profileUidFull.textContent).then(() => {
+    const originalTitle = copyUidBtn.title;
+    copyUidBtn.title = 'Đã sao chép!';
+    setTimeout(() => { copyUidBtn.title = originalTitle; }, 1500);
+  });
+});
+
+// 6. Đăng xuất
+logoutBtn.addEventListener('click', () => {
+  signOut(auth).then(() => {
+    profileWrap.classList.remove('open');
+  }).catch(err => alert("Lỗi đăng xuất: " + err.message));
+});
+
+// 7. Chỉnh sửa hồ sơ (đổi tên / ảnh đại diện)
+const btnEditProfile = document.getElementById('btn-edit-profile');
+const editProfileModal = document.getElementById('edit-profile-modal');
+const closeEditProfileModalBtn = document.getElementById('close-edit-profile-modal');
+const avatarUploadFrame = document.getElementById('avatar-upload-frame');
+const btnChooseAvatar = document.getElementById('btn-choose-avatar');
+const avatarFileInput = document.getElementById('avatar-file-input');
+const editAvatarPreview = document.getElementById('edit-avatar-preview');
+const editDisplayNameInput = document.getElementById('edit-display-name');
+const editNameCounter = document.getElementById('edit-name-counter');
+const btnSaveProfile = document.getElementById('btn-save-profile');
+const editProfileStatus = document.getElementById('edit-profile-status');
+
+const MAX_SOURCE_MB = 8;
+const MAX_BASE64_CHARS = 60000;
+let selectedAvatarBase64 = null;
+
+function setEditProfileStatus(msg, type) {
+  editProfileStatus.textContent = msg || '';
+  editProfileStatus.className = 'edit-profile-status' + (type ? ' ' + type : '');
+}
+
+function paintAvatarPreview(srcUrl, fallbackInitial) {
+  if (srcUrl) {
+    editAvatarPreview.innerHTML = `<img src="${srcUrl}" alt="avatar">`;
+  } else {
+    editAvatarPreview.textContent = fallbackInitial || 'U';
+  }
+}
+
+function compressImageToBase64(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Không thể đọc tệp ảnh.'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Tệp không phải là ảnh hợp lệ.'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+        } else {
+          if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function openEditProfileModal() {
+  const user = auth.currentUser;
+  if (!user) return;
+  selectedAvatarBase64 = null;
+  avatarFileInput.value = '';
+  const isGuest = user.isAnonymous;
+  const currentName = isGuest ? '' : (user.displayName || '');
+  editDisplayNameInput.value = currentName;
+  editNameCounter.textContent = currentName.length + '/30';
+  const fallbackInitial = (user.displayName || (user.email ? user.email.split('@')[0] : 'U')).trim().charAt(0).toUpperCase();
+  paintAvatarPreview(cachedAvatarBase64 || user.photoURL, fallbackInitial);
+  setEditProfileStatus('');
+  btnSaveProfile.disabled = false;
+  btnSaveProfile.textContent = 'Lưu thay đổi';
+  editProfileModal.classList.add('show');
+  profileWrap.classList.remove('open');
+}
+
+function closeEditProfileModal() {
+  editProfileModal.classList.remove('show');
+}
+
+btnEditProfile.addEventListener('click', openEditProfileModal);
+closeEditProfileModalBtn.addEventListener('click', closeEditProfileModal);
+editProfileModal.addEventListener('click', (e) => {
+  if (e.target === editProfileModal) closeEditProfileModal();
+});
+
+avatarUploadFrame.addEventListener('click', () => avatarFileInput.click());
+btnChooseAvatar.addEventListener('click', () => avatarFileInput.click());
+
+avatarFileInput.addEventListener('change', async () => {
+  const file = avatarFileInput.files && avatarFileInput.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    setEditProfileStatus('Vui lòng chọn một tệp hình ảnh.', 'error');
+    avatarFileInput.value = '';
+    return;
+  }
+  if (file.size > MAX_SOURCE_MB * 1024 * 1024) {
+    setEditProfileStatus(`Ảnh gốc vượt quá ${MAX_SOURCE_MB}MB, vui lòng chọn ảnh nhỏ hơn.`, 'error');
+    avatarFileInput.value = '';
+    return;
+  }
+
+  setEditProfileStatus('Đang xử lý ảnh...', '');
+  try {
+    let dataUrl = await compressImageToBase64(file, 160, 0.72);
+    if (dataUrl.length > MAX_BASE64_CHARS) dataUrl = await compressImageToBase64(file, 160, 0.5);
+    if (dataUrl.length > MAX_BASE64_CHARS) dataUrl = await compressImageToBase64(file, 110, 0.5);
+
+    if (dataUrl.length > MAX_BASE64_CHARS * 1.5) {
+      setEditProfileStatus('Ảnh quá phức tạp để nén nhỏ, vui lòng chọn ảnh khác đơn giản hơn.', 'error');
+      avatarFileInput.value = '';
+      return;
+    }
+
+    selectedAvatarBase64 = dataUrl;
+    paintAvatarPreview(dataUrl, null);
+    setEditProfileStatus('');
+  } catch (err) {
+    setEditProfileStatus('Lỗi xử lý ảnh: ' + err.message, 'error');
+    avatarFileInput.value = '';
+  }
+});
+
+editDisplayNameInput.addEventListener('input', () => {
+  editNameCounter.textContent = editDisplayNameInput.value.length + '/30';
+});
+
+btnSaveProfile.addEventListener('click', async () => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const newName = editDisplayNameInput.value.trim();
+  if (!newName) {
+    setEditProfileStatus('Vui lòng nhập tên hiển thị.', 'error');
+    return;
+  }
+  if (isAdminClaimName(newName) && !isEmailAdminAllowed(user.email)) {
+    setEditProfileStatus('Tên hiển thị không được chứa từ như "Admin/Quản trị/CEO/Đội ngũ FUTU TRADE..." — chỉ tài khoản được cấp phép mới dùng được.', 'error');
+    return;
+  }
+
+  btnSaveProfile.disabled = true;
+  btnSaveProfile.textContent = 'Đang lưu...';
+  setEditProfileStatus('');
+
+  try {
+    if (selectedAvatarBase64) {
+      setEditProfileStatus('Đang lưu ảnh...', '');
+      await dbSet(dbRef(rtdb, 'users/' + user.uid + '/avatarBase64'), selectedAvatarBase64);
+      cachedAvatarBase64 = selectedAvatarBase64;
+    }
+
+    await updateProfile(user, { displayName: newName });
+
+    renderProfile(user);
+    setEditProfileStatus('Đã lưu thay đổi!', 'ok');
+    setTimeout(closeEditProfileModal, 700);
+  } catch (err) {
+    setEditProfileStatus('Lỗi: ' + err.message, 'error');
+  } finally {
+    btnSaveProfile.disabled = false;
+    btnSaveProfile.textContent = 'Lưu thay đổi';
+  }
+});
+</script>
+</body>
+</html>

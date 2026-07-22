@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FUTU TRADE  CRYPTO TERMINAL - ĐƯỢC PHÁT TRIỂN BỞI SINH VIÊN VÕ THANH SANG(UTH)</title>
+<script src="https://unpkg.com/lightweight-charts@5/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/d3@7/dist/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</script>
+</head>
+<body>
+  
+  <div id="auth-overlay" class="auth-overlay" style="display:none;">
+  <div class="auth-scene" aria-hidden="true">
+    <div class="auth-scene-scroll">
+      <img class="auth-scene-bg" src="auth-bg.png" alt="">
+    </div>
+    <div class="auth-scene-vignette"></div>
+    <div class="auth-stars"></div>
+    <div class="auth-stars--far"></div>
+    <div class="auth-moon-glow"></div>
+    <div class="auth-steam">
+      <span class="auth-steam__puff p1"></span>
+      <span class="auth-steam__puff p2"></span>
+      <span class="auth-steam__puff p3"></span>
+    </div>
+    <div class="auth-firefly f1"></div>
+    <div class="auth-firefly f2"></div>
+    <div class="auth-firefly f3"></div>
+    <div class="auth-scanlines"></div>
+  </div>
+  <div class="auth-box">
+    <span class="auth-corner tl" aria-hidden="true"></span>
+    <span class="auth-corner tr" aria-hidden="true"></span>
+    <span class="auth-corner bl" aria-hidden="true"></span>
+    <span class="auth-corner br" aria-hidden="true"></span>
+
+    <div class="auth-eyebrow"><span class="auth-eyebrow-dot"></span>BUSINESS</div>
+
+    <div class="auth-brand">FUTU TRADE</div>
+    <div class="auth-subtitle">Hệ thống Terminal Crypto Demo</div>
+
+    <div class="auth-seal" aria-hidden="true"><span></span></div>
+
+    <button class="btn-auth btn-google" id="btn-google">
+      <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt=""></span>
+      <span class="btn-auth-label">Tiếp tục với Google</span>
+    </button>
+
+    <button class="btn-auth btn-facebook" id="btn-facebook">
+      <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt=""></span>
+      <span class="btn-auth-label">Tiếp tục với Facebook</span>
+    </button>
+
+    <div class="auth-or"><span>hoặc</span></div>
+
+    <button class="btn-auth btn-guest" id="btn-guest">
+      <span class="btn-auth-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </span>
+      <span class="btn-auth-label">Trải nghiệm với tư cách khách</span>
+    </button>
+      
+      <div id="otp-input-group" style="display: none; margin-top: 12px;">
+        <input type="text" id="otp-code" placeholder="Nhập 6 số mã OTP">
+        <button id="btn-verify-otp">Xác nhận</button>
+      </div>
+      
+      <div id="recaptcha-container" style="margin-top: 12px;"></div>
+
+      <div class="auth-footnote">KHÔNG LƯU MẬT KHẨU</div>
+    </div>
+  </div>
+
+
+  <div class="topbar">
+    <div class="brand">
+      <img src="logofututrade.png" class="brand-logo" alt="FUTU TRADE">
+      <div class="brand-text">FUTU TRADE<span> CRYPTO TERMINAL - ĐƯỢC PHÁT TRIỂN BỞI SINH VIÊN VÕ THANH SANG(UTH)</span>
+      </div>
+    </div>
+
+    <a href="trang-chu.html" class="home-btn" title="Về trang chủ">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 8.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V8.5"/></svg>
+      <span>Trang chủ</span>
+    </a>
+
+    <div class="chips" id="chip-container">
+      <button class="chip active" data-symbol="BTC">BTC</button>
+      <button class="chip" data-symbol="ETH">ETH</button>
+      <button class="chip" data-symbol="SOL">SOL</button>
+      <button class="chip" data-symbol="BNB">BNB</button>
+      <button class="chip" data-symbol="XRP">XRP</button>
+    </div>
+    <div class="search-box-wrap">
+      <div class="search-box">
+        <input type="text" id="symbol-input" placeholder="Nhập mã... (VD: ADA, DOGE, TON)" value="BTC" autocomplete="off">
+        <button id="search-btn">Tìm kiếm</button>
+      </div>
+      <div class="symbol-suggest" id="symbol-suggest"></div>
+      <div class="symbol-error" id="symbol-error"></div>
+    </div>
+
+    <div class="profile-wrap" id="profile-wrap" style="display:none;">
+      <button class="profile-btn" id="profile-btn" type="button">
+        <span class="profile-avatar" id="profile-avatar">?</span>
+        <span class="profile-meta">
+          <span class="profile-name" id="profile-name">Tài khoản</span>
+          <span class="profile-uid" id="profile-uid-mini">UID: ---------</span>
+        </span>
+        <span class="ico profile-chevron"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M6 9l6 6 6-6"/></svg></span>
+      </button>
+      <div class="profile-dropdown" id="profile-dropdown">
+        <div class="profile-dropdown-head">
+          <span class="profile-avatar large" id="profile-avatar-lg">?</span>
+          <div>
+            <div class="profile-dropdown-name" id="profile-dropdown-name">Tài khoản</div>
+            <div class="profile-dropdown-email" id="profile-dropdown-email">—</div>
+          </div>
+        </div>
+        <div class="profile-uid-row">
+          <span>UID</span>
+          <span class="profile-uid-value" id="profile-uid-full">---------</span>
+          <button class="profile-copy-btn" id="profile-copy-uid" type="button" title="Sao chép UID">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="12" height="12" rx="2"/><path d="M4.5 15.5H4A1.5 1.5 0 012.5 14V4A1.5 1.5 0 014 2.5h10A1.5 1.5 0 0115.5 4v.5"/></svg>
+          </button>
+        </div>
+        <button class="profile-edit-btn" id="btn-edit-profile" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Chỉnh sửa hồ sơ
+        </button>
+        <div class="profile-link-account" id="profile-link-account" style="display:none;">
+          <div class="profile-link-note">Bạn đang dùng tài khoản khách. Liên kết để không mất dữ liệu:</div>
+          <button class="profile-link-btn profile-link-google" id="btn-link-google" type="button">
+            <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" alt=""></span>
+            Liên kết Google
+          </button>
+          <button class="profile-link-btn profile-link-facebook" id="btn-link-facebook" type="button">
+            <span class="btn-auth-icon"><img src="https://upload.wikimedia.org/wikipedia/commons/b/b9/2023_Facebook_icon.svg" alt=""></span>
+            Liên kết Facebook
+          </button>
+        </div>
+        <div class="profile-divider"></div>
+        <button class="profile-logout-btn" id="btn-logout" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          Đăng xuất
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ticker-card">
+    <div class="symbol-block">
+      <div>
+        <div class="symbol-name" id="chart-title">BTCUSDT <span class="quote">4h</span></div>
+        <div style="margin-top:8px;" class="live-pill"><span class="live-dot"></span>LIVE</div>
+      </div>
+    </div>
+    <div class="price-block">
+      <div class="price-main num" id="current-price">--</div>
+      <div class="change-badge num" id="change-badge">--</div>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><span class="stat-label">Cao 24h</span><span class="stat-value num" id="stat-high">--</span></div>
+      <div class="stat"><span class="stat-label">Thấp 24h</span><span class="stat-value num" id="stat-low">--</span></div>
+      <div class="stat"><span class="stat-label">KL 24h</span><span class="stat-value num" id="stat-vol">--</span></div>
+      <div class="stat"><span class="stat-label">Cập nhật</span><span class="stat-value num" id="stat-updated">--</span></div>
+    </div>
+  </div>
+
+  <div class="sentiment-row">
+    <div class="sentiment-card" id="sentiment-card">
+      <div class="sentiment-head">
+        <div class="sentiment-title">Tỷ lệ Long/Short (Binance)</div>
+        <div class="sentiment-chevron"><span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></div>
+      </div>
+      <div class="sentiment-gauge" id="sentiment-gauge"></div>
+    </div>
+
+    <div class="sentiment-card" id="fng-card">
+      <div class="sentiment-head">
+        <div class="sentiment-title">Tâm lý thị trường chung</div>
+        <div class="sentiment-chevron"><span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span></div>
+      </div>
+      <div class="sentiment-gauge" id="fng-gauge"></div>
+    </div>
+
+    <div class="news-card" id="news-card">
+      <div class="sentiment-head">
+        <div class="sentiment-title">Tin tức nóng <span id="news-live-badge"></span></div>
+        <div class="news-updated" id="news-updated"></div>
+      </div>
+      <div class="news-list" id="news-list"><div class="news-empty">Đang tải tin tức...</div></div>
+    </div>
+  </div>
+
+  <div class="trend-panel" id="trend-panel">
+    <div class="trend-card" id="trend-short"><div class="trend-head"><div><div class="trend-name">Ngắn hạn</div><div class="trend-basis">EMA 9 / 21</div></div></div><div class="trend-badge"><span class="trend-arrow">—</span><span class="trend-label">Đang tính...</span></div><div class="trend-desc"></div></div>
+    <div class="trend-card" id="trend-medium"><div class="trend-head"><div><div class="trend-name">Trung hạn</div><div class="trend-basis">EMA 21 / 50</div></div></div><div class="trend-badge"><span class="trend-arrow">—</span><span class="trend-label">Đang tính...</span></div><div class="trend-desc"></div></div>
+    <div class="trend-card" id="trend-long"><div class="trend-head"><div><div class="trend-name">Dài hạn</div><div class="trend-basis">EMA 50 / 200</div></div></div><div class="trend-badge"><span class="trend-arrow">—</span><span class="trend-label">Đang tính...</span></div><div class="trend-desc"></div></div>
+  </div>
+
+  <div class="tf-row">
+    <div class="tf-tabs" id="tf-container">
+      <button class="tf-btn" data-interval="1m">1m</button>
+      <button class="tf-btn" data-interval="3m">3m</button>
+      <button class="tf-btn" data-interval="5m">5m</button>
+      <button class="tf-btn" data-interval="15m">15m</button>
+      <button class="tf-btn" data-interval="30m">30m</button>
+      <div class="tf-btn-sep"></div>
+      <button class="tf-btn" data-interval="1h">1h</button>
+      <button class="tf-btn" data-interval="2h">2h</button>
+      <button class="tf-btn active" data-interval="4h">4h</button>
+      <button class="tf-btn" data-interval="6h">6h</button>
+      <button class="tf-btn" data-interval="8h">8h</button>
+      <button class="tf-btn" data-interval="12h">12h</button>
+      <div class="tf-btn-sep"></div>
+      <button class="tf-btn" data-interval="1d">1d</button>
+      <button class="tf-btn" data-interval="3d">3d</button>
+      <button class="tf-btn" data-interval="1w">1w</button>
+      <button class="tf-btn" data-interval="1M">1M</button>
+    </div>
+    <div class="controls-right">
+      <div class="color-pickers">
+        <span class="ai-toggle-label">Màu nến & Volume:</span>
+        <input type="color" id="color-up" value="#14cc8a" title="Màu nến tăng">
+        <input type="color" id="color-down" value="#ff4757" title="Màu nến giảm">
+        <button id="btn-screenshot" class="tf-action-btn"><span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3.2L8.7 5.8h6.6L16.8 8H20a1 1 0 011 1v9.5a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.2" r="3.6"/></svg></span><span class="btn-txt">Chụp</span></button>
+        <button id="btn-settings" class="tf-action-btn"><span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span><span class="btn-txt">Cài đặt Volume cá mập</span></button>
+        <button id="btn-add-indicator" class="btn-add-ind tf-action-btn"><span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="btn-txt">Chỉ báo</span></button>
+      </div>
+      <div class="color-pickers" id="whale-marker-controls">
+        <span class="ai-toggle-label">Icon cá trên nến:</span>
+        <button id="btn-toggle-whale-markers" class="tf-action-btn" type="button" title="Bật/tắt hiển thị icon cá mua/bán trực tiếp trên cây nến"></button>
+        <div class="chart-whale-filter-row" id="chart-whale-filter-row"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <div class="drawing-toolbar" id="drawing-toolbar">
+      <button class="tool-btn active" data-tool="cursor" title="Con trỏ (Esc)">
+        <svg viewBox="0 0 24 24"><path d="M7 2l12 11.2-5.8.5 3.3 7.3-2.2.9-3.2-7.4-4.4 4.7z"/></svg>
+      </button>
+      <div class="toolbar-divider"></div>
+
+      <div class="tool-group" id="tool-group-line">
+        <button class="tool-btn tool-group-main" data-tool="trendline" title="Đường xu hướng (2 điểm) — giữ để xem thêm">
+          <svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M6.4 17.6L17.6 6.4" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+        </button>
+        <button class="tool-group-caret" data-flyout="flyout-line" title="Xem tất cả công cụ Đường">
+          <svg viewBox="0 0 24 24"><path d="M6 4l10 8-10 8z"/></svg>
+        </button>
+        <div class="tool-flyout" id="flyout-line">
+          <div class="tool-flyout-title">ĐƯỜNG</div>
+          <button class="tool-flyout-item" data-tool="trendline" data-shortcut="Alt+T">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M6.4 17.6L17.6 6.4" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></span>
+            <span class="tfi-label">Đường xu hướng</span><span class="tfi-key">Alt+T</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="ray">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="2"/><path d="M6.4 17.6L21 3" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></span>
+            <span class="tfi-label">Tia</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="infoline">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/><path d="M6.4 17.6L17.6 6.4" stroke="currentColor" stroke-width="1.6" fill="none"/><rect x="9" y="9.5" width="6" height="4" rx="1" fill="currentColor" stroke="none"/></svg></span>
+            <span class="tfi-label">Đường thông tin</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="extline">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24"><path d="M2 21L22 3" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></span>
+            <span class="tfi-label">Đường mở rộng</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="angle">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24"><path d="M4 20h16M4 20L18 6" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M4 20a8 8 0 018-8" stroke="currentColor" stroke-width="1.4" fill="none"/></svg></span>
+            <span class="tfi-label">Góc xu hướng</span>
+          </button>
+          <div class="tool-flyout-sep"></div>
+          <button class="tool-flyout-item" data-tool="hline" data-shortcut="Alt+H">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24"><path d="M3 11h18v2H3z"/></svg></span>
+            <span class="tfi-label">Đường nằm ngang</span><span class="tfi-key">Alt+H</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="hray" data-shortcut="Alt+J">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24"><circle cx="4.5" cy="12" r="2"/><path d="M8 11.2h13v1.6H8z"/></svg></span>
+            <span class="tfi-label">Tia nằm ngang</span><span class="tfi-key">Alt+J</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="vline" data-shortcut="Alt+V">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24"><path d="M11 3h2v18h-2z"/></svg></span>
+            <span class="tfi-label">Đường thẳng đứng</span><span class="tfi-key">Alt+V</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="crossline" data-shortcut="Alt+C">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></span>
+            <span class="tfi-label">Đường chữ thập</span><span class="tfi-key">Alt+C</span>
+          </button>
+        </div>
+      </div>
+      <div class="tool-group" id="tool-group-channel">
+        <button class="tool-btn tool-group-main" data-tool="channel" title="Kênh giá song song (3 điểm) — giữ để xem thêm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="1.6" y1="16.8" x2="17.6" y2="2.4"/><line x1="8.4" y1="23.2" x2="23.6" y2="8.8"/><circle cx="1.6" cy="16.8" r="1.6"/><circle cx="17.6" cy="2.4" r="1.6"/><circle cx="16" cy="16" r="1.6"/></svg>
+        </button>
+        <button class="tool-group-caret" data-flyout="flyout-channel" title="Xem tất cả công cụ Kênh">
+          <svg viewBox="0 0 24 24"><path d="M6 4l10 8-10 8z"/></svg>
+        </button>
+        <div class="tool-flyout" id="flyout-channel">
+          <div class="tool-flyout-title">KÊNH</div>
+          <button class="tool-flyout-item" data-tool="channel">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="1.6" y1="16.8" x2="17.6" y2="2.4"/><line x1="8.4" y1="23.2" x2="23.6" y2="8.8"/><circle cx="1.6" cy="16.8" r="1.6"/><circle cx="17.6" cy="2.4" r="1.6"/><circle cx="16" cy="16" r="1.6"/></svg></span>
+            <span class="tfi-label">Kênh song song</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="regression">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="1" y1="16" x2="17" y2="0" stroke-dasharray="2.4 2.2" opacity="0.65"/><line x1="4" y1="19" x2="20" y2="3"/><line x1="7" y1="22" x2="23" y2="6" stroke-dasharray="2.4 2.2" opacity="0.65"/><circle cx="4" cy="19" r="1.6" fill="currentColor" stroke="none"/><circle cx="20" cy="3" r="1.6" fill="currentColor" stroke="none"/></svg></span>
+            <span class="tfi-label">Xu hướng hồi quy</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="flatchannel">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="20" y1="2.4" x2="2.4" y2="11.2"/><line x1="1.6" y1="20.8" x2="20" y2="20.8"/><circle cx="20" cy="2.4" r="1.6"/><circle cx="2.4" cy="11.2" r="1.6"/><circle cx="1.6" cy="20.8" r="1.6"/><circle cx="20" cy="20.8" r="1.6"/></svg></span>
+            <span class="tfi-label">Mặt phẳng đỉnh/đáy</span>
+          </button>
+          <button class="tool-flyout-item" data-tool="disjointchannel">
+            <span class="tfi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><line x1="13.8" y1="3.6" x2="4.4" y2="10.2"/><line x1="3.6" y1="16.7" x2="16" y2="23.3"/><circle cx="13.8" cy="3.6" r="1.6"/><circle cx="4.4" cy="10.2" r="1.6"/><circle cx="3.6" cy="16.7" r="1.6"/><circle cx="16" cy="23.3" r="1.6"/></svg></span>
+            <span class="tfi-label">Kênh rời rạc</span>
+          </button>
+        </div>
+      </div>
+      <div class="toolbar-divider"></div>
+
+      <button class="tool-btn" data-tool="fib" title="Fibonacci thoái lui (2 điểm)">
+        <svg viewBox="0 0 24 24"><path d="M2 5h20v1.4H2zM2 9.4h20v1.4H2zM2 13.8h20v1.4H2zM2 18.2h20v1.4H2z"/></svg>
+      </button>
+      <div class="toolbar-divider"></div>
+
+      <button class="tool-btn" data-tool="rect" title="Hình chữ nhật">
+        <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="circle" title="Hình tròn / Ê-líp">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      </button>
+      <div class="toolbar-divider"></div>
+
+      <button class="tool-btn" data-tool="polyline" title="Bút vẽ nhiều điểm (Enter để hoàn tất)">
+        <svg viewBox="0 0 24 24"><path d="M3 18l4-9 5 5 4-11 5 12" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="arrow" title="Mũi tên">
+        <svg viewBox="0 0 24 24"><path d="M3 21L20 4" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M20 4l-6.2 1.2M20 4l-1.2 6.2" stroke="currentColor" stroke-width="1.8" fill="none"/></svg>
+      </button>
+      <button class="tool-btn" data-tool="text" title="Chèn văn bản / ghi chú">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16v2.2H4zM11 7.2h2V19h-2z"/></svg>
+      </button>
+      <div class="toolbar-divider"></div>
+
+      <button class="tool-btn" data-tool="measure" title="Đo lường (giá / % / số nến)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 8v3M9 8v3M12 8v3M15 8v3M18 8v3" stroke="currentColor" stroke-width="1.4"/></svg>
+      </button>
+      <div class="toolbar-divider"></div>
+
+      <button class="tool-btn tool-toggle" data-toggle="magnet" title="Nam châm — hút điểm vẽ vào O/H/L/C gần nhất">
+        <svg viewBox="0 0 24 24"><path d="M8 3h3v8a1 1 0 002 0V3h3v8a4 4 0 01-8 0V3z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 3v8a7 7 0 0014 0V3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+      <button class="tool-btn tool-toggle" data-toggle="lock" title="Khoá toàn bộ bản vẽ (chống xoá nhầm)">
+        <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 11V8a4 4 0 018 0v3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+      <button class="tool-btn tool-toggle" data-toggle="hide" title="Ẩn/hiện toàn bộ bản vẽ">
+        <svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+      <div class="toolbar-divider"></div>
+
+      <button class="tool-btn" data-tool="eraser" title="Xoá 1 bản vẽ (click vào đối tượng)">
+        <svg viewBox="0 0 24 24"><path d="M16.24 3.56l4.2 4.2a1.5 1.5 0 010 2.12l-9.19 9.19H5v-6.25l9.19-9.19a1.5 1.5 0 012.12 0zM7 19h12v2H7z"/></svg>
+      </button>
+      <button class="tool-btn" id="clear-drawings" title="Xóa tất cả đường kẻ">
+        <svg viewBox="0 0 24 24"><path d="M15 4V3H9v1H4v2h1v13c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V6h1V4h-5zm-1 0h-4V4h4v0zm3 15H7V6h10v13z"/></svg>
+      </button>
+    </div>
+
+    <div class="chart-wrapper" id="chart-wrapper">
+      <div id="chart-price" style="position: relative;">
+        <div class="chart-legend" id="price-legend"></div>
+        <div class="draw-hint" id="draw-hint"></div>
+
+        <!-- AI ROBOT — mascot HUD độc quyền FUTU TRADE, vẽ 100% bằng code (SVG + CSS), có cánh + hiệu ứng năng lượng. Đặt lệch trái để không che trục giá. -->
+        <div class="ai-robot-fab on" id="ai-robot-fab" role="button" tabindex="0" aria-pressed="true" aria-label="Bật/tắt AI Tín hiệu">
+          <span class="ai-robot-glow"></span>
+          <span class="ai-robot-ring"></span>
+          <span class="ai-robot-orbit-dot d1"></span>
+          <span class="ai-robot-orbit-dot d2"></span>
+
+          <svg class="ai-robot-wing ai-robot-wing--l" viewBox="0 0 48 56" aria-hidden="true">
+            <defs>
+              <linearGradient id="wingGradL" x1="0%" y1="50%" x2="100%" y2="50%">
+                <stop offset="0%" stop-color="#ffc93c" stop-opacity="0"/>
+                <stop offset="42%" stop-color="#c81e2f" stop-opacity=".92"/>
+                <stop offset="100%" stop-color="#ff4757"/>
+              </linearGradient>
+            </defs>
+            <g class="ai-robot-wing-feathers">
+              <path class="feather f1" d="M46,25 L2,0 L12,16 L46,29 Z"/>
+              <path class="feather f2" d="M46,30 L1,23 L10,33 L46,36 Z"/>
+              <path class="feather f3" d="M46,35 L5,48 L14,44 L46,40 Z"/>
+            </g>
+          </svg>
+
+          <svg class="ai-robot-wing ai-robot-wing--r" viewBox="0 0 48 56" aria-hidden="true">
+            <defs>
+              <linearGradient id="wingGradR" x1="100%" y1="50%" x2="0%" y2="50%">
+                <stop offset="0%" stop-color="#ffc93c" stop-opacity="0"/>
+                <stop offset="42%" stop-color="#c81e2f" stop-opacity=".92"/>
+                <stop offset="100%" stop-color="#ff4757"/>
+              </linearGradient>
+            </defs>
+            <g class="ai-robot-wing-feathers">
+              <path class="feather f1" d="M2,25 L46,0 L36,16 L2,29 Z"/>
+              <path class="feather f2" d="M2,30 L47,23 L38,33 L2,36 Z"/>
+              <path class="feather f3" d="M2,35 L43,48 L34,44 L2,40 Z"/>
+            </g>
+          </svg>
+
+          <span class="ai-robot-core">
+            <span class="ai-robot-scanline"></span>
+            <span class="ai-robot-grid"></span>
+            <svg class="ai-robot-bot" viewBox="0 0 64 74" aria-hidden="true">
+              <defs>
+                <linearGradient id="botChassis" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#8f1522"/>
+                  <stop offset="55%" stop-color="#5a0f1a"/>
+                  <stop offset="100%" stop-color="#1c0508"/>
+                </linearGradient>
+                <linearGradient id="botVisor" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#ff8a3d"/>
+                  <stop offset="50%" stop-color="#7ee0ff"/>
+                  <stop offset="100%" stop-color="#ff4757"/>
+                </linearGradient>
+              </defs>
+
+              <!-- Ăng-ten phát tín hiệu -->
+              <line class="bot-antenna" x1="32" y1="10" x2="32" y2="1" stroke="#ffc93c" stroke-width="2" stroke-linecap="round"/>
+              <circle class="bot-antenna-tip" cx="32" cy="1" r="2.6" fill="#ffc93c"/>
+
+              <!-- Đầu / thân chính dạng hexagon góc cạnh, giáp đỏ ánh kim -->
+              <polygon class="bot-head" points="32,10 60,24 60,56 32,70 4,56 4,24" fill="url(#botChassis)" stroke="#ff4757" stroke-width="1.4"/>
+              <polygon class="bot-head-inner" points="32,15 55,26.5 55,53.5 32,65 9,53.5 9,26.5" fill="none" stroke="#ffc93c" stroke-opacity=".4" stroke-width="1"/>
+
+              <!-- Vai gắn cánh, gai giáp nhọn -->
+              <polygon class="bot-shoulder" points="4,28 -3,33 4,46 4,38" fill="#ff4757" fill-opacity=".7"/>
+              <polygon class="bot-shoulder" points="60,28 67,33 60,46 60,38" fill="#ff4757" fill-opacity=".7"/>
+
+              <!-- Kính che mặt / mắt phát sáng -->
+              <rect class="bot-visor" x="12" y="30" width="40" height="14" rx="6" fill="url(#botVisor)"/>
+              <rect class="bot-visor-shade" x="12" y="30" width="40" height="7" rx="6" fill="#1c0508" fill-opacity=".3"/>
+              <rect class="bot-eye" x="18" y="34.5" width="9" height="5" rx="2.2" fill="#1c0508"/>
+              <rect class="bot-eye" x="37" y="34.5" width="9" height="5" rx="2.2" fill="#1c0508"/>
+
+              <!-- Khe tản nhiệt hàm dưới -->
+              <rect class="bot-vent" x="22" y="52" width="20" height="2" rx="1" fill="#ffc93c" fill-opacity=".6"/>
+              <rect class="bot-vent" x="25" y="57" width="14" height="2" rx="1" fill="#ffc93c" fill-opacity=".4"/>
+
+              <!-- Đường mạch trang trí -->
+              <path class="bot-circuit" d="M9,46 L16,46 L18,49" stroke="#ffc93c" stroke-width="1" fill="none" stroke-linecap="round"/>
+              <path class="bot-circuit" d="M55,46 L48,46 L46,49" stroke="#ffc93c" stroke-width="1" fill="none" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="ai-robot-status-dot" id="ai-robot-status-dot"></span>
+          <span class="ai-robot-tip">
+            <span class="ai-robot-tip-title">FUTU ROBO</span>
+            <span class="ai-robot-tip-state" id="ai-robot-state-label">Đang bật</span>
+          </span>
+        </div>
+      </div>
+      <div class="resizer" id="pane-resizer"></div>
+      <div class="sub-pane" id="pane-volume" data-pane="volume">
+        <div class="pane-header"><span class="pane-drag" title="Kéo để đổi vị trí"><svg class="ico-svg" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><span class="pane-title">Khối lượng</span></div>
+        <div id="chart-volume" style="position:relative;">
+          <div class="chart-legend" id="volume-legend"></div>
+        </div>
+      </div>
+      <div class="sub-pane" id="pane-rsi" data-pane="rsi">
+        <div class="pane-header"><span class="pane-drag" title="Kéo để đổi vị trí"><svg class="ico-svg" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><span class="pane-title">RSI</span></div>
+        <div id="chart-rsi" style="position: relative;">
+          <div class="chart-legend" id="rsi-legend"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-grid">
+    <div class="ai-panel">
+      <div class="ai-panel-head">
+        <div class="ai-panel-title"><span class="dot" style="background:var(--accent);"></span>Nhật ký FUTU ROBO Thuận Xu Hướng<span id="ai-live-status" style="font-size:10px; color:var(--text-dim); font-weight:600; margin-left:6px;"></span></div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-risk-settings" id="btn-risk-settings" title="Tùy chỉnh mức độ rủi ro LONG/SHORT"><span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span> Rủi ro: <span id="risk-level-btn-label">Cân bằng</span></button>
+          <button class="btn-clear-all" onclick="clearAllAILogs()">Xóa tất cả <span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.5A1.5 1.5 0 0110.5 3h3A1.5 1.5 0 0115 4.5V7m2 0v12.5A1.5 1.5 0 0115.5 21h-7A1.5 1.5 0 017 19.5V7h10z"/><path d="M10 11v6M14 11v6"/></svg></span></button>
+        </div>
+      </div>
+      <div class="ai-stats-bar" id="ai-stats-bar"></div>
+      <div class="ai-signal-list" id="ai-signal-list"><div class="ai-empty" id="ai-empty">Đang phân tích...</div></div>
+    </div>
+    
+    <div class="ai-panel">
+      <div class="ai-panel-head">
+        <div class="ai-panel-title"><span class="dot" style="background:var(--gold);"></span>Nhật ký Lệnh Cá Mập</div>
+        <button class="btn-clear-all" onclick="clearAllSharkLogs()">Xóa tất cả <span class="ico"><svg class="ico-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.5A1.5 1.5 0 0110.5 3h3A1.5 1.5 0 0115 4.5V7m2 0v12.5A1.5 1.5 0 0115.5 21h-7A1.5 1.5 0 017 19.5V7h10z"/><path d="M10 11v6M14 11v6"/></svg></span></button>
+      </div>
+      <div class="ai-signal-list" id="whale-log-list"><div class="ai-empty">Chưa có dữ liệu cá mập...</div></div>
+    </div>
+  </div>
+
+  <div class="econ-row" id="econ-row">
+  <div class="econ-section" id="econ-section">
+    <div class="econ-space-bg" id="econ-space-bg" aria-hidden="true">
+      <div class="econ-space-photo">
+        <div class="econ-space-vignette"></div>
+      </div>
+      <div class="econ-space-twinkle"></div>
+      <div class="econ-shooting-star" id="econ-shooting-star"></div>
+    </div>
+    <div class="econ-content" id="econ-content">
+    <div class="econ-header">
+      <div>
+        <div class="econ-eyebrow">NỀN KINH TẾ</div>
+        <div class="econ-title" id="econ-title">Bản đồ lạm phát toàn cầu</div>
+      </div>
+      <div class="chips econ-tabs" id="econ-tabs">
+        <button class="chip active" data-econ="inflation" type="button">Lạm phát</button>
+        <button class="chip" data-econ="gdp" type="button">Tăng trưởng GDP</button>
+        <button class="chip" data-econ="unemployment" type="button">Thất nghiệp</button>
+      </div>
+    </div>
+
+    <div class="econ-body" id="econ-body">
+      <div class="econ-map-wrap" id="econ-map-wrap">
+        <div class="econ-map-status" id="econ-map-status">Đang tải dữ liệu…</div>
+        <canvas id="econ-map-canvas" class="econ-map-svg"></canvas>
+        <div class="econ-zoom-controls" id="econ-zoom-controls">
+          <button type="button" id="econ-zoom-in" title="Phóng to" aria-label="Phóng to">+</button>
+          <button type="button" id="econ-zoom-out" title="Thu nhỏ" aria-label="Thu nhỏ">−</button>
+          <button type="button" id="econ-zoom-reset" title="Về mặc định" aria-label="Về mặc định">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M21 12a9 9 0 11-3.5-7.1"/><path d="M21 3v6h-6"/></svg>
+          </button>
+        </div>
+        <div class="econ-map-hint">🖱️ Kéo để xoay · Cuộn/chụm để phóng to-thu nhỏ</div>
+      </div>
+
+      <div class="econ-side">
+        <div class="econ-legend-wrap">
+          <div class="econ-legend-scale">
+            <div class="econ-legend-bar" id="econ-legend-bar"></div>
+            <div class="econ-legend-labels" id="econ-legend-labels"></div>
+          </div>
+          <div class="econ-legend-hover" id="econ-legend-hover">
+            <span class="econ-legend-hover-dot" id="econ-legend-hover-dot"></span>
+            <span class="econ-legend-hover-text" id="econ-legend-hover-text">Di chuột vào bản đồ để xem chi tiết từng quốc gia</span>
+          </div>
+        </div>
+        <div class="econ-source">Nguồn dữ liệu thật: World Bank — World Development Indicators (mỗi quốc gia hiển thị theo năm gần nhất có số liệu công bố, xem chi tiết khi di chuột/chạm vào bản đồ).</div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="econ-extra" id="econ-extra">
+    <div class="econ-mini-card" id="econ-rank-card">
+      <div class="econ-mini-head">
+        <span class="econ-mini-title" id="econ-rank-title">🏆 Xếp hạng quốc gia</span>
+        <span class="econ-mini-sub" id="econ-rank-sub"></span>
+      </div>
+      <div class="econ-mini-desc" id="econ-rank-desc"></div>
+      <div class="econ-rank-list" id="econ-rank-list"><div class="econ-mini-empty">Đang tải…</div></div>
+    </div>
+
+    <div class="econ-mini-card" id="econ-trend-card">
+      <div class="econ-mini-head">
+        <span class="econ-mini-title" id="econ-trend-title">📈 Xu hướng toàn cầu</span>
+        <span class="econ-mini-sub" id="econ-trend-sub"></span>
+      </div>
+      <div class="econ-mini-desc" id="econ-trend-desc"></div>
+      <div class="econ-trend-chart-wrap"><canvas id="econ-trend-canvas"></canvas></div>
+    </div>
+
+    <div class="econ-mini-card" id="econ-ticker-card">
+      <div class="econ-mini-head">
+        <span class="econ-mini-title">💱 Tỷ giá ngoại tệ</span>
+        <span class="econ-mini-sub" id="econ-ticker-sub"></span>
+      </div>
+      <div class="econ-ticker-list" id="econ-ticker-list"><div class="econ-mini-empty">Đang tải…</div></div>
+    </div>
+  </div>
+  </div>
+  <div class="econ-tooltip" id="econ-tooltip"></div>
+
+  <div class="site-footer">
+    <div class="site-footer-disclaimer">
+      <div class="site-footer-disclaimer-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      </div>
+      <div class="site-footer-disclaimer-text">
+        <strong>Miễn trừ trách nhiệm</strong>
+        <p>FUTU TRADE là công cụ hỗ trợ theo dõi &amp; phân tích dữ liệu thị trường, không phải lời khuyên hay khuyến nghị đầu tư. Toàn bộ tín hiệu AI, chỉ báo kỹ thuật, dữ liệu cá mập... trên nền tảng chỉ mang tính chất tham khảo. FUTU TRADE không đại diện giao dịch, không thực hiện lệnh mua/bán, không quản lý tài sản và không chịu trách nhiệm dưới bất kỳ hình thức nào đối với quyết định đầu tư của người dùng. Giao dịch tài sản số tiềm ẩn rủi ro cao — người dùng tự nghiên cứu và chịu trách nhiệm hoàn toàn với quyết định của mình.</p>
+      </div>
+    </div>
+    <div class="site-footer-bottom">
+      <div class="site-footer-brand">
+        <span class="site-footer-copyright">© 2026 FUTU TRADE</span>
+        <span class="site-footer-dot">•</span>
+        <span>Được phát triển bởi sinh viên Võ Thanh Sang (UTH)</span>
+      </div>
+      <a href="privacy.html" target="_blank" rel="noopener" class="site-footer-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.6c0 4.6-3.1 8.4-7.5 9.4-4.4-1-7.5-4.8-7.5-9.4V6z"/><path d="M9 12l2.2 2.2L15.3 10"/></svg>
+        Chính sách quyền riêng tư
+      </a>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-box">
+      <div class="modal-title">Cài đặt Phân Loại Cá <button class="close-btn" id="close-modal">&times;</button></div>
+      <div class="modal-subtitle" style="font-size:11px;color:var(--text-dim);padding:0 20px 10px;line-height:1.5;">
+        Ngưỡng <b>Cá Heo</b> của MỖI coin giờ tự tính theo khối lượng giao dịch 24h THỰC TẾ của chính coin đó
+        (không còn 3 mức cố định lỗi thời): <code>Ngưỡng = Hệ số × √(Khối lượng 24h)</code> — coin thanh khoản càng lớn
+        (BTC/ETH) thì cần lệnh càng to mới tính là "cá", coin thanh khoản mỏng thì lệnh nhỏ hơn đã đáng chú ý.
+        Cá Mập = x3 ngưỡng này, Cá Voi = x10 — vẫn tự động riêng theo từng coin.
+      </div>
+      <div class="setting-group">
+        <label>⚙️ Hệ số ảnh hưởng thị trường (k)</label>
+        <input type="number" step="0.1" id="set-whale-factor" value="3.5">
+        <div class="setting-hint" style="font-size:10.5px;color:var(--text-dim);margin-top:4px;">k càng lớn → ngưỡng càng cao (ít báo hơn, chỉ bắt cá thật lớn). k càng nhỏ → càng nhạy (báo nhiều hơn). Mặc định 3.5 tương đương ~500K USDT cho BTC/ETH và ~100K USDT cho coin vốn hóa vừa ở khối lượng giao dịch hiện tại.</div>
+      </div>
+      <div class="setting-group">
+        <label>🐬 Ngưỡng tối thiểu (sàn) - USDT</label>
+        <input type="number" id="set-whale-floor" value="5000">
+        <div class="setting-hint" style="font-size:10.5px;color:var(--text-dim);margin-top:4px;">Áp dụng cho coin quá mới/quá ít thanh khoản, tránh ngưỡng bị tính ra quá thấp gây spam log.</div>
+      </div>
+      <div class="setting-group">
+        <label>Độ bùng nổ Vol AI (Mặc định x2.5 lần)</label>
+        <input type="number" step="0.1" id="set-ai-vol" value="2.5">
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="btn-cancel-modal">Hủy</button>
+        <button class="btn-save" id="btn-save-modal">Lưu thay đổi</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="risk-settings-modal">
+    <div class="modal-box" style="width:400px;">
+      <div class="modal-title">Cài đặt Rủi ro LONG/SHORT <button class="close-btn" id="close-risk-modal">&times;</button></div>
+      <div class="modal-subtitle" style="font-size:11px;color:var(--text-dim);padding:0 0 12px;line-height:1.5;">
+        Chọn mức độ rủi ro FUTU ROBO áp dụng khi quét tín hiệu LONG/SHORT. Mức càng thận trọng, ROBO càng đòi
+        hỏi nhiều yếu tố đồng thuận hơn (xu hướng đa khung, ADX, khối lượng, tâm lý đám đông) mới ra tín hiệu,
+        SL đặt sát hơn, ít lệnh hơn nhưng chất lượng cao hơn. Mức càng mạo hiểm thì ngược lại: nhiều lệnh hơn,
+        SL rộng hơn để tránh bị quét sớm, nhưng rủi ro mỗi lệnh cao hơn.
+      </div>
+
+      <div class="setting-group">
+        <label>Mức độ rủi ro</label>
+        <div class="risk-level-row" id="risk-level-row">
+          <button type="button" class="chip risk-level-chip" data-level="1">1 · Rất thận trọng</button>
+          <button type="button" class="chip risk-level-chip" data-level="2">2 · Thận trọng</button>
+          <button type="button" class="chip risk-level-chip" data-level="3">3 · Cân bằng</button>
+          <button type="button" class="chip risk-level-chip" data-level="4">4 · Mạo hiểm</button>
+          <button type="button" class="chip risk-level-chip" data-level="5">5 · Rất mạo hiểm</button>
+        </div>
+        <div class="setting-hint" style="font-size:10.5px;color:var(--text-dim);margin-top:6px;" id="risk-level-desc"></div>
+      </div>
+
+      <div class="setting-group">
+        <label style="display:flex; align-items:center; justify-content:space-between;">
+          <span>% vốn rủi ro mỗi lệnh</span>
+          <span style="display:inline-flex; align-items:center; gap:5px; font-weight:500; text-transform:none;">
+            <input type="checkbox" id="risk-percent-auto" style="width:auto;"> Tự theo mức độ
+          </span>
+        </label>
+        <input type="number" step="0.1" min="0.1" max="20" id="risk-percent-input">
+        <div class="setting-hint" style="font-size:10.5px;color:var(--text-dim);margin-top:4px;">Phần trăm vốn tối đa chấp nhận mất nếu lệnh chạm SL. Bỏ tick "Tự theo mức độ" để tự nhập con số riêng.</div>
+      </div>
+
+      <div class="setting-group">
+        <label>Vốn tài khoản (USDT) — tùy chọn</label>
+        <input type="number" step="1" min="0" id="risk-capital-input" placeholder="VD: 1000">
+        <div class="setting-hint" style="font-size:10.5px;color:var(--text-dim);margin-top:4px;">Nhập để ROBO tính sẵn khối lượng vào lệnh gợi ý ($ và số coin) cho từng tín hiệu. Không bắt buộc.</div>
+      </div>
+
+      <div class="risk-summary-box" id="risk-summary-box"></div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" id="btn-cancel-risk-modal">Hủy</button>
+        <button class="btn-save" id="btn-save-risk-modal">Lưu thay đổi</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="auth-modal" style="display: flex; z-index: 9999; justify-content: center; align-items: center;">
+    <div class="modal-box" style="max-width: 400px; text-align: center; width: 100%;">
+      <div class="modal-title" style="justify-content: center; font-size: 20px; color: var(--accent); font-family: 'Sora', sans-serif;">
+        XÁC THỰC TRUY CẬP
+      </div>
+      <p style="color: var(--text-dim); font-size: 13px; margin-bottom: 20px;">Vui lòng xác thực số điện thoại để mở khóa hệ thống Terminal.</p>
+      
+      <div class="setting-group" style="text-align: left; margin-bottom: 15px;">
+        <label style="display: block; margin-bottom: 8px;">Số điện thoại của bạn:</label>
+        <input type="tel" id="phone-number" style="width: 100%; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px;">
+      </div>
+
+      <div id="recaptcha-container" style="margin: 15px auto; display: flex; justify-content: center;"></div>
+
+      <div class="setting-group" id="otp-input-group" style="text-align: left; margin-bottom: 15px; display: none;">
+        <label style="display: block; margin-bottom: 8px;">Nhập mã OTP (6 chữ số):</label>
+        <input type="text" id="otp-code" placeholder="------" style="width: 100%; text-align: center; padding: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; letter-spacing: 6px; font-size: 18px; font-family: monospace;">
+      </div>
+
+      <div style="margin-top: 20px; display: flex; gap: 10px;">
+        <button class="btn-save" id="btn-send-otp" style="width: 100%; padding: 12px;">Gửi mã OTP</button>
+        <button class="btn-save" id="btn-verify-otp" style="width: 100%; padding: 12px; display: none; background: var(--up);">Xác thực OTP</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="edit-profile-modal">
+    <div class="modal-box" style="max-width:380px;">
+      <div class="modal-title">
+        Chỉnh sửa hồ sơ
+        <button class="close-btn" id="close-edit-profile-modal" type="button">&times;</button>
+      </div>
+
+      <div class="avatar-upload-wrap">
+        <div class="avatar-upload-frame" id="avatar-upload-frame">
+          <span class="profile-avatar" id="edit-avatar-preview">?</span>
+          <div class="avatar-hover-layer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3.2L8.7 5.8h6.6L16.8 8H20a1 1 0 011 1v9.5a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.2" r="3.6"/></svg>
+          </div>
+        </div>
+        <button class="avatar-upload-btn" id="btn-choose-avatar" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3.2L8.7 5.8h6.6L16.8 8H20a1 1 0 011 1v9.5a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.2" r="3.6"/></svg>
+          Đổi ảnh đại diện
+        </button>
+        <div class="avatar-upload-hint">JPG hoặc PNG, tối đa 3MB</div>
+        <input type="file" id="avatar-file-input" accept="image/png, image/jpeg, image/webp" style="display:none;">
+      </div>
+
+      <div class="setting-group">
+        <label>Tên hiển thị</label>
+        <input type="text" id="edit-display-name" maxlength="30" placeholder="Nhập tên của bạn" style="font-family:'Inter', sans-serif;">
+        <div class="edit-name-counter" id="edit-name-counter">0/30</div>
+      </div>
+
+      <button class="btn-save full" id="btn-save-profile" type="button">Lưu thay đổi</button>
+      <div class="edit-profile-status" id="edit-profile-status"></div>
+    </div>
+  </div>
+
+  <style></style>
+    
+  </style>
+  <script src="script.js"></script>
+  
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { 
+    getAuth, 
+    onAuthStateChanged, 
+    signInWithPopup, 
+    signInWithRedirect,
+    getRedirectResult,
+    GoogleAuthProvider, 
+    FacebookAuthProvider,
+    RecaptchaVerifier,
+    signInWithPhoneNumber,
+    signInAnonymously,
+    linkWithPopup,
+    linkWithRedirect,
+    signOut,
+    updateProfile
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import {
+    getDatabase,
+    ref as dbRef,
+    set as dbSet,
+    get as dbGet
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  //  thông tin Firebase Console
+   const firebaseConfig = {
+    apiKey: "AIzaSyAsreiWebSWQUh76EaPJIz5SZ1YDzCrMM0",
+    authDomain: "futu-quanly.firebaseapp.com",
+    databaseURL: "https://futu-quanly-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "futu-quanly",
+    storageBucket: "futu-quanly.firebasestorage.app",
+    messagingSenderId: "572473761748",
+    appId: "1:572473761748:web:da6f2674b06bd651e8c041"
+  };
+  // Khởi tạo Firebase
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const rtdb = getDatabase(app);
+
+  // Phát hiện mobile / trình duyệt trong app (Facebook, TikTok, Threads, Zalo, ...)
+  // vì các môi trường này thường KHÔNG giữ được sessionStorage giữa tab chính và popup,
+  // gây lỗi "missing initial state" khi dùng signInWithPopup. Với các môi trường này
+  // ta chuyển sang signInWithRedirect (điều hướng thẳng, không mở popup) để tránh lỗi.
+  function shouldUseRedirect() {
+    const ua = navigator.userAgent || '';
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+    const isInAppBrowser = /FBAN|FBAV|Instagram|Line|Zalo|TikTok|Threads|MicroMessenger/i.test(ua);
+    return isMobile || isInAppBrowser;
+  }
+
+  // Sau khi quay về từ redirect (nếu có), Firebase sẽ trả kết quả đăng nhập ở đây.
+  // onAuthStateChanged bên dưới cũng sẽ tự cập nhật UI, nhưng bắt lỗi ở đây giúp
+  // hiển thị thông báo rõ ràng nếu redirect thất bại thay vì im lặng.
+  getRedirectResult(auth).catch(err => {
+    if (err && err.code && err.code !== 'auth/no-auth-event') {
+      alert("Lỗi đăng nhập: " + err.message);
+    }
+  });
+
+  const authOverlay = document.getElementById('auth-overlay');
+  const topbarEl = document.querySelector('.topbar');
+
+  // Sinh mã UID hiển thị (9 chữ số) ổn định từ uid thật của Firebase,
+  // giống cách các sàn lớn hiện UID rút gọn thay vì chuỗi uid dài khó nhớ.
+  function shortUidFrom(uid) {
+    let hash = 0;
+    for (let i = 0; i < uid.length; i++) {
+      hash = (hash * 31 + uid.charCodeAt(i)) >>> 0;
+    }
+    return String(100000000 + (hash % 900000000));
+  }
+
+  const profileWrap = document.getElementById('profile-wrap');
+  const profileBtn = document.getElementById('profile-btn');
+  const profileAvatar = document.getElementById('profile-avatar');
+  const profileAvatarLg = document.getElementById('profile-avatar-lg');
+  const profileName = document.getElementById('profile-name');
+  const profileUidMini = document.getElementById('profile-uid-mini');
+  const profileDropdownName = document.getElementById('profile-dropdown-name');
+  const profileDropdownEmail = document.getElementById('profile-dropdown-email');
+  const profileUidFull = document.getElementById('profile-uid-full');
+  const copyUidBtn = document.getElementById('profile-copy-uid');
+  const logoutBtn = document.getElementById('btn-logout');
+  const linkAccountBox = document.getElementById('profile-link-account');
+  const linkGoogleBtn = document.getElementById('btn-link-google');
+  const linkFacebookBtn = document.getElementById('btn-link-facebook');
+
+  // Ảnh đại diện được lưu dạng chuỗi base64 (đã nén nhỏ) trong Realtime Database,
+  // vì Firebase Auth photoURL không đủ chỗ chứa base64 và Storage cần gói Blaze trả phí.
+  let cachedAvatarBase64 = null;
+
+  // =========================================================
+  // CHỐNG MẠO DANH ADMIN QUA TÊN HIỂN THỊ
+  // Chỉ những email trong danh sách dưới đây mới được phép có tên hiển thị chứa các từ kiểu
+  // "Admin/Quản trị/CEO/Đội ngũ FUTU TRADE..." — tránh việc người dùng bất kỳ tự đặt tên giả
+  // làm quản trị viên để lừa người khác trong ứng dụng.
+  // =========================================================
+  const ADMIN_ALLOWED_EMAILS = ['tuitensang07@gmail.com'];
+
+  // Bỏ dấu tiếng Việt để bắt được cả các biến thể gõ không dấu (vd "quan tri vien futu trade")
+  function stripVnDiacritics(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd');
+  }
+  // Danh sách từ khoá "tự xưng admin" dưới nhiều biến thể đồng nghĩa — có thể bổ sung thêm nếu phát hiện cách né mới
+  const ADMIN_CLAIM_KEYWORDS = [
+    'admin', 'administrator', 'quan tri', 'ban quan tri', 'quan tri vien',
+    'ceo', 'founder', 'nguoi sang lap', 'chu so huu', 'chu san',
+    'doi ngu futu', 'nhan vien futu', 'nhan vien chinh thuc',
+    'support futu', 'ho tro futu', 'cham soc khach hang futu', 'staff futu',
+    'moderator', 'mod futu', 'official futu', 'futu official', 'futu trade official',
+    'dai dien futu', 'quan ly futu', 'giam doc futu'
+  ];
+  function isAdminClaimName(rawName) {
+    if (!rawName) return false;
+    const norm = stripVnDiacritics(rawName.toLowerCase());
+    return ADMIN_CLAIM_KEYWORDS.some(k => norm.includes(k));
+  }
+  function isEmailAdminAllowed(email) {
+    return !!email && ADMIN_ALLOWED_EMAILS.includes(email.toLowerCase());
+  }
+
+  // Đổ dữ liệu người dùng ra ô profile cạnh logo
+  function renderProfile(user) {
+    const isGuest = user.isAnonymous;
+    let displayName = isGuest ? 'Khách' : (user.displayName || (user.email ? user.email.split('@')[0] : 'Người dùng'));
+    // Chặn mạo danh: kể cả khi tên "Admin/CEO/Đội ngũ FUTU TRADE..." đến từ chính tên tài khoản
+    // Google/Facebook gốc (không qua form đổi tên trong app), vẫn không hiển thị nếu email không
+    // nằm trong danh sách được cấp phép — thay bằng tên rút gọn theo email.
+    if (!isGuest && isAdminClaimName(displayName) && !isEmailAdminAllowed(user.email)) {
+      displayName = user.email ? user.email.split('@')[0] : 'Người dùng';
+    }
+    const initial = displayName.trim().charAt(0).toUpperCase() || 'U';
+    const uidShort = shortUidFrom(user.uid);
+    const avatarSrc = cachedAvatarBase64 || user.photoURL;
+
+    profileName.textContent = displayName;
+    profileDropdownName.textContent = displayName;
+    profileDropdownEmail.textContent = isGuest ? 'Tài khoản khách (chưa liên kết)' : (user.email || user.phoneNumber || 'Đã xác thực');
+    profileUidMini.textContent = 'UID: ' + uidShort;
+    profileUidFull.textContent = uidShort;
+
+    [profileAvatar, profileAvatarLg].forEach(el => {
+      if (!el) return;
+      if (avatarSrc) {
+        el.innerHTML = `<img src="${avatarSrc}" alt="avatar">`;
+      } else {
+        el.textContent = initial;
+      }
+    });
+
+    // Chỉ hiện khối "Liên kết tài khoản" khi đang đăng nhập ẩn danh (khách),
+    // để khách có thể nâng cấp lên Google/Facebook mà không mất dữ liệu đã tạo.
+    if (linkAccountBox) linkAccountBox.style.display = isGuest ? 'block' : 'none';
+
+    profileWrap.style.display = 'block';
+    if (topbarEl) topbarEl.classList.add('topbar--auth');
+  }
+
+  // Tải ảnh đại diện đã lưu trong Realtime Database (nếu có) rồi vẽ lại profile
+  async function loadAvatarThenRender(user) {
+    try {
+      const snap = await dbGet(dbRef(rtdb, 'users/' + user.uid + '/avatarBase64'));
+      cachedAvatarBase64 = snap.exists() ? snap.val() : null;
+    } catch (e) {
+      cachedAvatarBase64 = null;
+    }
+    renderProfile(user);
+  }
+
+  // Liên kết tài khoản khách hiện tại với một provider (Google/Facebook),
+  // giữ nguyên uid và dữ liệu đã có thay vì tạo tài khoản mới.
+  function linkGuestWith(provider, providerLabel) {
+    if (!auth.currentUser || !auth.currentUser.isAnonymous) return;
+    const run = shouldUseRedirect()
+      ? linkWithRedirect(auth.currentUser, provider)
+      : linkWithPopup(auth.currentUser, provider);
+
+    run.catch(err => {
+      if (err && err.code === 'auth/credential-already-in-use') {
+        alert('Tài khoản ' + providerLabel + ' này đã được dùng cho một tài khoản khác. Vui lòng đăng xuất và đăng nhập trực tiếp bằng ' + providerLabel + ' để tiếp tục với tài khoản đó.');
+      } else if (err && err.code !== 'auth/cancelled-popup-request' && err.code !== 'auth/popup-closed-by-user') {
+        alert('Lỗi liên kết ' + providerLabel + ': ' + err.message);
+      }
+    });
+  }
+
+  // 1. Kiểm tra trạng thái đăng nhập tự động
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      // Đã đăng nhập -> Mở khóa ẩn màn hình Login đi
+      authOverlay.style.display = 'none';
+      document.documentElement.classList.remove('auth-locked'); // mở lại cuộn trang chính
+      renderProfile(user); // vẽ ngay với dữ liệu có sẵn (không chờ mạng)
+      loadAvatarThenRender(user); // sau đó tải avatar từ Realtime Database và vẽ lại
+      console.log("User hiện tại:", user.uid);
+    } else {
+      // Chưa đăng nhập -> Đăng nhập được thực hiện tại Trang chủ, nên chuyển hướng
+      // về đó ngay để trang chủ luôn là màn hình đầu tiên người dùng nhìn thấy.
+      // Lưu ý: KHÔNG khoá cuộn (auth-locked) ở đây — trang sắp điều hướng đi nên không cần khoá;
+      // nếu khoá trước rồi chuyển hướng bị chậm/chặn (mạng yếu, trình duyệt di động...),
+      // người dùng sẽ bị kẹt không cuộn được trang Terminal.
+      window.location.replace('trang-chu.html');
+    }
+  });
+
+  // 2. Xử lý Đăng nhập Google
+  document.getElementById('btn-google').addEventListener('click', () => {
+    const provider = new GoogleAuthProvider();
+    if (shouldUseRedirect()) {
+      signInWithRedirect(auth, provider).catch(err => alert("Lỗi đăng nhập Google: " + err.message));
+    } else {
+      signInWithPopup(auth, provider).catch(err => alert("Lỗi đăng nhập Google: " + err.message));
+    }
+  });
+
+  // 3. Xử lý Đăng nhập Facebook
+  document.getElementById('btn-facebook').addEventListener('click', () => {
+    const provider = new FacebookAuthProvider();
+    if (shouldUseRedirect()) {
+      signInWithRedirect(auth, provider).catch(err => alert("Lỗi đăng nhập Facebook: " + err.message));
+    } else {
+      signInWithPopup(auth, provider).catch(err => alert("Lỗi đăng nhập Facebook: " + err.message));
+    }
+  });
+
+  // 3b. Xử lý Đăng nhập với tư cách khách (ẩn danh) — không cần Google/Facebook,
+  // sau này người dùng có thể liên kết tài khoản thật từ menu hồ sơ để giữ dữ liệu.
+  document.getElementById('btn-guest').addEventListener('click', () => {
+    signInAnonymously(auth).catch(err => alert("Lỗi vào với tư cách khách: " + err.message));
+  });
+
+  // 3c. Liên kết tài khoản khách với Google / Facebook (nâng cấp tài khoản, giữ nguyên uid)
+  linkGoogleBtn.addEventListener('click', () => {
+    linkGuestWith(new GoogleAuthProvider(), 'Google');
+  });
+  linkFacebookBtn.addEventListener('click', () => {
+    linkGuestWith(new FacebookAuthProvider(), 'Facebook');
+  });
+
+  // 4. Mở / đóng dropdown profile
+  profileBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    profileWrap.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!profileWrap.contains(e.target)) profileWrap.classList.remove('open');
+  });
+
+  // 5. Sao chép UID
+  copyUidBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(profileUidFull.textContent).then(() => {
+      const originalTitle = copyUidBtn.title;
+      copyUidBtn.title = 'Đã sao chép!';
+      setTimeout(() => { copyUidBtn.title = originalTitle; }, 1500);
+    });
+  });
+
+  // 6. Đăng xuất tài khoản
+  logoutBtn.addEventListener('click', () => {
+    signOut(auth).then(() => {
+      profileWrap.classList.remove('open');
+    }).catch(err => alert("Lỗi đăng xuất: " + err.message));
+  });
+
+  // 7. CHỈNH SỬA HỒ SƠ — đổi tên hiển thị và ảnh đại diện (giống các sàn lớn)
+  const btnEditProfile = document.getElementById('btn-edit-profile');
+  const editProfileModal = document.getElementById('edit-profile-modal');
+  const closeEditProfileModalBtn = document.getElementById('close-edit-profile-modal');
+  const avatarUploadFrame = document.getElementById('avatar-upload-frame');
+  const btnChooseAvatar = document.getElementById('btn-choose-avatar');
+  const avatarFileInput = document.getElementById('avatar-file-input');
+  const editAvatarPreview = document.getElementById('edit-avatar-preview');
+  const editDisplayNameInput = document.getElementById('edit-display-name');
+  const editNameCounter = document.getElementById('edit-name-counter');
+  const btnSaveProfile = document.getElementById('btn-save-profile');
+  const editProfileStatus = document.getElementById('edit-profile-status');
+
+  const MAX_SOURCE_MB = 8; // giới hạn ảnh gốc trước khi nén, chỉ để tránh ảnh quá khổ làm treo trình duyệt
+  const MAX_BASE64_CHARS = 60000; // ~45KB sau nén — đủ nhỏ để lưu miễn phí trong Realtime Database
+  let selectedAvatarBase64 = null; // ảnh đã nén (base64), chưa lưu lên server cho tới khi bấm Lưu
+
+  function setEditProfileStatus(msg, type) {
+    editProfileStatus.textContent = msg || '';
+    editProfileStatus.className = 'edit-profile-status' + (type ? ' ' + type : '');
+  }
+
+  // Hiển thị avatar hiện tại (ảnh hoặc chữ cái đầu tên) vào ô preview trong modal
+  function paintAvatarPreview(srcUrl, fallbackInitial) {
+    if (srcUrl) {
+      editAvatarPreview.innerHTML = `<img src="${srcUrl}" alt="avatar">`;
+    } else {
+      editAvatarPreview.textContent = fallbackInitial || 'U';
+    }
+  }
+
+  // Thu nhỏ + nén ảnh ngay trên trình duyệt người dùng thành base64 JPEG nhỏ gọn,
+  // để lưu được miễn phí trong Realtime Database (không cần Firebase Storage trả phí).
+  function compressImageToBase64(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Không thể đọc tệp ảnh.'));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Tệp không phải là ảnh hợp lệ.'));
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height) {
+            if (width > maxDim) { height = Math.round(height * maxDim / width); width = maxDim; }
+          } else {
+            if (height > maxDim) { width = Math.round(width * maxDim / height); height = maxDim; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function openEditProfileModal() {
+    const user = auth.currentUser;
+    if (!user) return;
+    selectedAvatarBase64 = null;
+    avatarFileInput.value = '';
+    const isGuest = user.isAnonymous;
+    const currentName = isGuest ? '' : (user.displayName || '');
+    editDisplayNameInput.value = currentName;
+    editNameCounter.textContent = currentName.length + '/30';
+    const fallbackInitial = (user.displayName || (user.email ? user.email.split('@')[0] : 'U')).trim().charAt(0).toUpperCase();
+    paintAvatarPreview(cachedAvatarBase64 || user.photoURL, fallbackInitial);
+    setEditProfileStatus('');
+    btnSaveProfile.disabled = false;
+    btnSaveProfile.textContent = 'Lưu thay đổi';
+    editProfileModal.classList.add('show');
+    profileWrap.classList.remove('open');
+  }
+
+  function closeEditProfileModal() {
+    editProfileModal.classList.remove('show');
+  }
+
+  btnEditProfile.addEventListener('click', openEditProfileModal);
+  closeEditProfileModalBtn.addEventListener('click', closeEditProfileModal);
+  editProfileModal.addEventListener('click', (e) => {
+    if (e.target === editProfileModal) closeEditProfileModal();
+  });
+
+  // Bấm vào khung ảnh hoặc nút "Đổi ảnh đại diện" đều mở hộp chọn file
+  avatarUploadFrame.addEventListener('click', () => avatarFileInput.click());
+  btnChooseAvatar.addEventListener('click', () => avatarFileInput.click());
+
+  avatarFileInput.addEventListener('change', async () => {
+    const file = avatarFileInput.files && avatarFileInput.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setEditProfileStatus('Vui lòng chọn một tệp hình ảnh.', 'error');
+      avatarFileInput.value = '';
+      return;
+    }
+    if (file.size > MAX_SOURCE_MB * 1024 * 1024) {
+      setEditProfileStatus(`Ảnh gốc vượt quá ${MAX_SOURCE_MB}MB, vui lòng chọn ảnh nhỏ hơn.`, 'error');
+      avatarFileInput.value = '';
+      return;
+    }
+
+    setEditProfileStatus('Đang xử lý ảnh...', '');
+    try {
+      // Nén dần: thử nhỏ gọn trước, nếu vẫn còn quá nặng thì nén thêm lần nữa
+      let dataUrl = await compressImageToBase64(file, 160, 0.72);
+      if (dataUrl.length > MAX_BASE64_CHARS) dataUrl = await compressImageToBase64(file, 160, 0.5);
+      if (dataUrl.length > MAX_BASE64_CHARS) dataUrl = await compressImageToBase64(file, 110, 0.5);
+
+      if (dataUrl.length > MAX_BASE64_CHARS * 1.5) {
+        setEditProfileStatus('Ảnh quá phức tạp để nén nhỏ, vui lòng chọn ảnh khác đơn giản hơn.', 'error');
+        avatarFileInput.value = '';
+        return;
+      }
+
+      selectedAvatarBase64 = dataUrl;
+      paintAvatarPreview(dataUrl, null);
+      setEditProfileStatus('');
+    } catch (err) {
+      setEditProfileStatus('Lỗi xử lý ảnh: ' + err.message, 'error');
+      avatarFileInput.value = '';
+    }
+  });
+
+  editDisplayNameInput.addEventListener('input', () => {
+    editNameCounter.textContent = editDisplayNameInput.value.length + '/30';
+  });
+
+  // Lưu thay đổi: ghi ảnh (base64 đã nén) vào Realtime Database, và tên vào Firebase Auth — miễn phí hoàn toàn
+  btnSaveProfile.addEventListener('click', async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const newName = editDisplayNameInput.value.trim();
+    if (!newName) {
+      setEditProfileStatus('Vui lòng nhập tên hiển thị.', 'error');
+      return;
+    }
+    if (isAdminClaimName(newName) && !isEmailAdminAllowed(user.email)) {
+      setEditProfileStatus('Tên hiển thị không được chứa từ như "Admin/Quản trị/CEO/Đội ngũ FUTU TRADE..." — chỉ tài khoản được cấp phép mới dùng được.', 'error');
+      return;
+    }
+
+    btnSaveProfile.disabled = true;
+    btnSaveProfile.textContent = 'Đang lưu...';
+    setEditProfileStatus('');
+
+    try {
+      if (selectedAvatarBase64) {
+        setEditProfileStatus('Đang lưu ảnh...', '');
+        await dbSet(dbRef(rtdb, 'users/' + user.uid + '/avatarBase64'), selectedAvatarBase64);
+        cachedAvatarBase64 = selectedAvatarBase64;
+      }
+
+      await updateProfile(user, { displayName: newName });
+
+      renderProfile(user); // cập nhật ngay avatar + tên hiển thị ngoài thanh top bar
+      setEditProfileStatus('Đã lưu thay đổi!', 'ok');
+      setTimeout(closeEditProfileModal, 700);
+    } catch (err) {
+      setEditProfileStatus('Lỗi: ' + err.message, 'error');
+    } finally {
+      btnSaveProfile.disabled = false;
+      btnSaveProfile.textContent = 'Lưu thay đổi';
+    }
+  });
+
+  // Nút xác nhận mã OTP
+  document.getElementById('btn-verify-otp').addEventListener('click', () => {
+    const code = document.getElementById('otp-code').value.trim();
+    if(!code || !confirmationResult) return alert("Vui lòng nhập mã OTP");
+
+    confirmationResult.confirm(code)
+      .then((result) => {
+        alert("Đăng nhập thành công!");
+      })
+      .catch((error) => {
+        alert("Mã OTP không chính xác hoặc đã hết hạn!");
+      });
+  });
+</script>
+</body>
+</html>
